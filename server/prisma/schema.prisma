@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  YAPPD
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  refreshToken  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tasks         Task[]
+  officers      Officer[]
+}
+
+enum AvailabilityStatus {
+  AVAILABLE
+  UNAVAILABLE
+  MC
+  ON_LEAVE
+  DUTY
+  UNKNOWN
+}
+
+model Officer {
+  id           String         @id @default(cuid())
+  telegramId   String         @unique
+  telegramName String?
+  name         String?
+  rank         String?
+  adminId      String
+  admin        User           @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  availability Availability[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([adminId])
+}
+
+model Availability {
+  id         String             @id @default(cuid())
+  officerId  String
+  officer    Officer            @relation(fields: [officerId], references: [id], onDelete: Cascade)
+  date       DateTime           @db.Date
+  status     AvailabilityStatus
+  rawMessage String
+  notes      String?
+  createdAt  DateTime           @default(now())
+
+  @@unique([officerId, date])
+  @@index([officerId])
+  @@index([date])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  tag         String?
+  position    Int          @default(0)
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+}
