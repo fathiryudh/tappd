@@ -537,7 +537,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
         reply_markup: { inline_keyboard: [[{ text: '← Back to week', callback_data: 'week_back' }]] },
       })
     } else {
-      const day = session.days[date]
+      const day = session.days[date] || { status: 'IN', reason: null, notes: '', splitDay: true, amStatus: 'IN', pmStatus: 'IN' }
       day.outReason = value
       day.reason = value
       // Derive overall status and notes
