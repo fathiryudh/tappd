@@ -2,6 +2,7 @@ const express = require('express')
 const cookieParser = require('cookie-parser')
 const cors = require('cors')
 const routes = require('./src/routes/index')
+const publicRoutes = require('./src/routes/public.routes')
 const errorHandler = require('./src/middleware/errorHandler')
 
 const app = express()
@@ -13,6 +14,7 @@ app.use(cors({
 app.use(express.json())
 app.use(cookieParser())
 
+app.use('/', publicRoutes)
 app.use('/api/v1', routes)
 
 app.use(errorHandler)
