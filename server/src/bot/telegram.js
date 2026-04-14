@@ -651,15 +651,6 @@ async function storeAndConfirm(records, officer, chatId, rawMessage, messageId =
 
 // ── Registration helpers ───────────────────────────────────────────────────────
 
-let cachedAdminId = null
-async function getDefaultAdminId() {
-  if (cachedAdminId) return cachedAdminId
-  const admin = await prisma.user.findUnique({ where: { email: process.env.BOT_ADMIN_EMAIL } })
-  if (!admin) throw new Error('BOT_ADMIN_EMAIL not found in DB — set this env var')
-  cachedAdminId = admin.id
-  return cachedAdminId
-}
-
 async function startRegistration(telegramId, chatId, fromUser) {
   const telegramName = fromUser?.username || fromUser?.first_name || ''
   pendingRegistration.set(telegramId, { step: 'rank', rank: null, telegramName })
@@ -704,13 +695,11 @@ async function handleMessage(msg) {
         return
       }
       pendingRegistration.delete(telegramId)
-      const adminId = await getDefaultAdminId()
       await prisma.officer.create({
         data: {
           telegramId,
           telegramName: reg.telegramName,
           name: `${reg.rank} ${name}`,
-          adminId,
         },
       })
       await bot.sendMessage(

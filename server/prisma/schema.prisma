@@ -42,8 +42,8 @@ model Officer {
   name         String?
   rank         String?
   department   String?
-  adminId      String
-  admin        User           @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  adminId      String?
+  admin        User?          @relation(fields: [adminId], references: [id], onDelete: SetNull)
   availability Availability[]
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt

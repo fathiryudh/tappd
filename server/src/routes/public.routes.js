@@ -12,20 +12,10 @@ function esc(str) {
 }
 
 router.get('/roster', async (req, res) => {
-  if (!process.env.BOT_ADMIN_EMAIL) {
-    return res.status(503).send('BOT_ADMIN_EMAIL is not configured.')
-  }
-
-  const admin = await prisma.user.findUnique({ where: { email: process.env.BOT_ADMIN_EMAIL } })
-  if (!admin) {
-    return res.status(404).send('Admin not found.')
-  }
-
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
   const officers = await prisma.officer.findMany({
-    where: { adminId: admin.id },
     include: {
       availability: { where: { date: today }, take: 1 },
     },

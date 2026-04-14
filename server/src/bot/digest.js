@@ -1,12 +1,13 @@
 const prisma = require('../config/prisma')
 const { transporter } = require('../utils/mailer')
 
-async function sendDailyDigest(adminId, adminEmail) {
+async function sendDailyDigest(digestEmail) {
+  if (!digestEmail) { console.warn('DIGEST_EMAIL not set — skipping digest'); return }
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
   const officers = await prisma.officer.findMany({
-    where: { adminId },
     include: {
       availability: { where: { date: today }, take: 1 },
     },
@@ -68,21 +69,20 @@ async function sendDailyDigest(adminId, adminEmail) {
 
   await transporter.sendMail({
     from: `Yappd <${process.env.SMTP_USER}>`,
-    to: adminEmail,
+    to: digestEmail,
     subject: `Yappd Daily Roster — ${dateStr} (${countIn}/${officers.length} in)`,
     text: textBody,
     html: htmlBody,
   })
 
-  console.log(`Digest sent to ${adminEmail}: ${countIn}/${officers.length} in`)
+  console.log(`Digest sent to ${digestEmail}: ${countIn}/${officers.length} in`)
 }
 
-async function getUnreportedOfficers(adminId) {
+async function getUnreportedOfficers() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return prisma.officer.findMany({
     where: {
-      adminId,
       availability: { none: { date: today } },
     },
   })
