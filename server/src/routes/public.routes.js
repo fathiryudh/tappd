@@ -2,6 +2,15 @@ const express = require('express')
 const router = express.Router()
 const prisma = require('../config/prisma')
 
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 router.get('/roster', async (req, res) => {
   if (!process.env.BOT_ADMIN_EMAIL) {
     return res.status(503).send('BOT_ADMIN_EMAIL is not configured.')
@@ -42,7 +51,7 @@ router.get('/roster', async (req, res) => {
 
   const rows = officers.map((officer) => {
     const avail = officer.availability[0]
-    const displayName = [officer.rank, officer.name].filter(Boolean).join(' ') || officer.telegramName || `ID ${officer.telegramId}`
+    const displayName = esc([officer.rank, officer.name].filter(Boolean).join(' ') || officer.telegramName || `ID ${officer.telegramId}`)
 
     let statusText
     let statusColor
@@ -60,7 +69,7 @@ router.get('/roster', async (req, res) => {
       rowBg = '#f0fdf4'
     } else {
       countOut++
-      statusText = avail.reason ? `Out — ${avail.reason}` : 'Out'
+      statusText = avail.reason ? `Out — ${esc(avail.reason)}` : 'Out'
       statusColor = '#dc2626'
       rowBg = '#fafafa'
     }
@@ -162,6 +171,7 @@ router.get('/roster', async (req, res) => {
 </html>`
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-store')
   res.send(html)
 })
 
