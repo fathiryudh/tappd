@@ -7,8 +7,8 @@ const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN)
 // ── Session stores ────────────────────────────────────────────────────────────
 // Availability session: telegramId → { step, status, reason, splitDay, amStatus, pmStatus, outReason, chatId, messageId }
 const sessions = new Map()
-// Registration session: telegramId → { step, name, chatId, messageId }
-const regSessions = new Map()
+// Registration session: telegramId → { step: 'rank' | 'name', rank: string, telegramName: string }
+const pendingRegistration = new Map()
 // Week planner session: telegramId → {
 //   step: 'GRID' | 'DAY_STATUS' | 'DAY_SPLIT_AM' | 'DAY_SPLIT_PM' | 'DAY_REASON' | 'DAY_REASON_TEXT' | 'DAY_SPLIT_REASON' | 'DAY_SPLIT_REASON_TEXT',
 //   weekDates: string[],          // ['2026-04-14', ..., '2026-04-18']
@@ -111,24 +111,6 @@ function dateKeyboard(todayISO, tomorrowISO, isSplitDay = false) {
   }
   keyboard.push([{ text: '❌  Cancel', callback_data: 'cancel' }])
   return { inline_keyboard: keyboard }
-}
-
-function deptKeyboard() {
-  return {
-    inline_keyboard: [
-      [
-        { text: 'Ops', callback_data: 'dept:Ops' },
-        { text: 'Admin', callback_data: 'dept:Admin' },
-        { text: 'Logistics', callback_data: 'dept:Logistics' },
-      ],
-      [
-        { text: 'Training', callback_data: 'dept:Training' },
-        { text: 'Comms', callback_data: 'dept:Comms' },
-        { text: 'HQ', callback_data: 'dept:HQ' },
-      ],
-      [{ text: '✏️  Other (type it)', callback_data: 'dept:OTHER' }],
-    ],
-  }
 }
 
 function replyKeyboardMarkup() {
@@ -669,41 +651,19 @@ async function storeAndConfirm(records, officer, chatId, rawMessage, messageId =
 
 // ── Registration helpers ───────────────────────────────────────────────────────
 
-async function startRegistration(telegramId, chatId, fromUser) {
-  regSessions.set(telegramId, { step: 'NAME', name: null, chatId, messageId: null })
-  const sent = await bot.sendMessage(
-    chatId,
-    `👋 Welcome to Yappd! Looks like you're new here.\n\nWhat's your name and rank? (e.g. SGT Tan Wei Ming)`
-  )
-  regSessions.get(telegramId).messageId = sent.message_id
+let cachedAdminId = null
+async function getDefaultAdminId() {
+  if (cachedAdminId) return cachedAdminId
+  const admin = await prisma.user.findUnique({ where: { email: process.env.BOT_ADMIN_EMAIL } })
+  if (!admin) throw new Error('BOT_ADMIN_EMAIL not found in DB — set this env var')
+  cachedAdminId = admin.id
+  return cachedAdminId
 }
 
-async function finishRegistration(telegramId, name, department, chatId, messageId) {
-  const adminId = process.env.UNIT_ADMIN_ID
-  const officer = await prisma.officer.create({
-    data: {
-      telegramId,
-      name,
-      department,
-      adminId,
-    },
-  })
-  const deptStr = department ? ` (${department})` : ''
-  const text = `✅ Done, ${name}${deptStr}! You're all set.\n\nYap your status anytime — say "in", "mc", "vl", etc. or just tap the buttons 😄`
-  if (messageId) {
-    await bot.editMessageText(text, {
-      chat_id: chatId,
-      message_id: messageId,
-      reply_markup: { inline_keyboard: [] },
-    })
-    // Send a follow-up to attach the persistent Reply Keyboard
-    await bot.sendMessage(chatId, "Tap a button below to get started 👇", {
-      reply_markup: replyKeyboardMarkup(),
-    })
-  } else {
-    await bot.sendMessage(chatId, text, { reply_markup: replyKeyboardMarkup() })
-  }
-  return officer
+async function startRegistration(telegramId, chatId, fromUser) {
+  const telegramName = fromUser?.username || fromUser?.first_name || ''
+  pendingRegistration.set(telegramId, { step: 'rank', rank: null, telegramName })
+  await bot.sendMessage(chatId, "Welcome to Yappd! What's your rank? (e.g. CPT, LTA, ME3, SGT)")
 }
 
 // ── Message handler ───────────────────────────────────────────────────────────
@@ -717,23 +677,32 @@ async function handleMessage(msg) {
   const todayISO = new Date().toISOString().split('T')[0]
   const tomorrowISO = new Date(Date.now() + 86400000).toISOString().split('T')[0]
 
-  // 1. Registration flow — NAME step (typed name)
-  if (regSessions.has(telegramId)) {
-    const reg = regSessions.get(telegramId)
-
-    if (reg.step === 'NAME') {
-      reg.name = rawMessage
-      reg.step = 'DEPT'
-      const sent = await bot.sendMessage(chatId, `Nice to meet you, ${rawMessage}! 😄\n\nWhat department are you in?`, {
-        reply_markup: deptKeyboard(),
-      })
-      reg.messageId = sent.message_id
+  // 1. Registration flow
+  if (pendingRegistration.has(telegramId)) {
+    const reg = pendingRegistration.get(telegramId)
+    if (reg.step === 'rank') {
+      reg.rank = rawMessage.trim()
+      reg.step = 'name'
+      await bot.sendMessage(chatId, `And your name? (just your name, e.g. John Tan)`)
       return
     }
-
-    if (reg.step === 'DEPT_TEXT') {
-      regSessions.delete(telegramId)
-      await finishRegistration(telegramId, reg.name, rawMessage, chatId, null)
+    if (reg.step === 'name') {
+      const name = rawMessage.trim()
+      pendingRegistration.delete(telegramId)
+      const adminId = await getDefaultAdminId()
+      await prisma.officer.create({
+        data: {
+          telegramId,
+          telegramName: reg.telegramName,
+          name: `${reg.rank} ${name}`,
+          adminId,
+        },
+      })
+      await bot.sendMessage(
+        chatId,
+        `Welcome, ${reg.rank} ${name}! You're all set.\n\nYap your status anytime — type 'in', 'mc', 'vl', etc. or tap the buttons below.`,
+        { reply_markup: replyKeyboardMarkup() }
+      )
       return
     }
   }
@@ -838,11 +807,7 @@ async function handleMessage(msg) {
   // 2. Check if officer exists in DB
   const officer = await prisma.officer.findUnique({ where: { telegramId } })
   if (!officer) {
-    if (process.env.UNIT_ADMIN_ID) {
-      await startRegistration(telegramId, chatId, msg.from)
-    } else {
-      await bot.sendMessage(chatId, "Eh, you're not in the unit roster yet lah 😅 Ask your admin to add you to Yappd first!")
-    }
+    await startRegistration(telegramId, chatId, msg.from)
     return
   }
 
@@ -906,7 +871,7 @@ async function handleCallbackQuery(query) {
   // Cancel
   if (data === 'cancel') {
     sessions.delete(telegramId)
-    regSessions.delete(telegramId)
+    pendingRegistration.delete(telegramId)
     weekSessions.delete(telegramId)
     await bot.editMessageText('Cancelled! 😊 Say anything to start again.', {
       chat_id: chatId,
@@ -926,32 +891,6 @@ async function handleCallbackQuery(query) {
       return
     }
     await handleWeekCallback(query, officerForWeek, telegramId, chatId, messageId, data, todayISO, tomorrowISO)
-    return
-  }
-
-  // ── Registration callbacks ──
-  if (data.startsWith('dept:')) {
-    const reg = regSessions.get(telegramId)
-    if (!reg) {
-      await bot.editMessageText("Oops, session expired 😅 Just say hi to start again!", {
-        chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] },
-      })
-      return
-    }
-
-    const dept = data.slice(5)  // value after 'dept:'
-    if (dept === 'OTHER') {
-      reg.step = 'DEPT_TEXT'
-      await bot.editMessageText('What department? Just type it 👇', {
-        chat_id: chatId,
-        message_id: messageId,
-        reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'cancel' }]] },
-      })
-      return
-    }
-
-    regSessions.delete(telegramId)
-    await finishRegistration(telegramId, reg.name, dept, chatId, messageId)
     return
   }
 
@@ -1084,11 +1023,17 @@ async function handleCommand(msg) {
   const telegramId = String(msg.from.id)
 
   if (text.startsWith('/start')) {
-    await bot.sendMessage(
-      msg.chat.id,
-      `👋 Hey! I'm Yappd — your unit's attendance bot.\n\nJust yap your status and I'll do the rest:\n\n• in\n• mc / mc tmr\n• vl / vl tmr\n• wfh\n• ovl\n• course\n\nOr tap the buttons below 😄`,
-      { reply_markup: replyKeyboardMarkup() }
-    )
+    const existing = await prisma.officer.findUnique({ where: { telegramId } })
+    if (existing) {
+      const name = existing.name || existing.telegramName || 'there'
+      await bot.sendMessage(
+        msg.chat.id,
+        `Hey ${name}, you're already registered.\n\nType 'in', 'mc', 'vl', etc. or tap the buttons to log your status.`,
+        { reply_markup: replyKeyboardMarkup() }
+      )
+    } else {
+      await startRegistration(telegramId, msg.chat.id, msg.from)
+    }
     return
   }
 
