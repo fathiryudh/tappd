@@ -6,19 +6,6 @@ datasource db {
   provider = "sqlite"
 }
 
-enum TaskStatus {
-  TODO
-  IN_PROGRESS
-  YAPPD
-}
-
-enum TaskPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -26,7 +13,6 @@ model User {
   refreshToken  String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  tasks         Task[]
   officers      Officer[]
 }
 
@@ -67,21 +53,3 @@ model Availability {
   @@index([date])
 }
 
-model Task {
-  id          String       @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus   @default(TODO)
-  priority    TaskPriority @default(MEDIUM)
-  tag         String?
-  position    Int          @default(0)
-  dueDate     DateTime?
-  completedAt DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([userId, status])
-}

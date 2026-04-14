@@ -21,6 +21,8 @@ const pendingRegistration = new Map()
 //   messageId: number,
 // }
 const weekSessions = new Map()
+// Deletion confirmation: telegramIds awaiting "YES" to confirm profile deletion
+const pendingDeletion = new Set()
 
 // ── Keyboard builders ─────────────────────────────────────────────────────────
 
@@ -668,6 +670,25 @@ async function handleMessage(msg) {
   const todayISO = new Date().toISOString().split('T')[0]
   const tomorrowISO = new Date(Date.now() + 86400000).toISOString().split('T')[0]
 
+  // 0. Pending deletion confirmation
+  if (pendingDeletion.has(telegramId)) {
+    pendingDeletion.delete(telegramId)
+    if (rawMessage === 'YES') {
+      const officerToDelete = await prisma.officer.findUnique({ where: { telegramId } })
+      if (officerToDelete) {
+        await prisma.officer.delete({ where: { telegramId } })
+        await bot.sendMessage(chatId, "Profile deleted. You've been removed from the roster. You can re-register anytime with /start. 👋", {
+          reply_markup: { remove_keyboard: true },
+        })
+      } else {
+        await bot.sendMessage(chatId, "No profile found to delete.", { reply_markup: replyKeyboardMarkup() })
+      }
+    } else {
+      await bot.sendMessage(chatId, "Deletion cancelled. 👍", { reply_markup: replyKeyboardMarkup() })
+    }
+    return
+  }
+
   // 1. Registration flow
   if (pendingRegistration.has(telegramId)) {
     const reg = pendingRegistration.get(telegramId)
@@ -754,7 +775,9 @@ async function handleMessage(msg) {
       })
     } else {
       await bot.sendMessage(chatId, `${name}'s status today: ${formatRecord(avail)}${avail.notes ? ` (${avail.notes})` : ''}`, {
-        reply_markup: replyKeyboardMarkup(),
+        reply_markup: {
+          inline_keyboard: [[{ text: '✏️ Edit today\'s status', callback_data: 'edit_today' }]],
+        },
       })
     }
     return
@@ -878,11 +901,31 @@ async function handleCallbackQuery(query) {
     sessions.delete(telegramId)
     pendingRegistration.delete(telegramId)
     weekSessions.delete(telegramId)
+    pendingDeletion.delete(telegramId)
     await bot.editMessageText('Cancelled! 😊 Say anything to start again.', {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: { inline_keyboard: [] },
     })
+    return
+  }
+
+  // Edit today's status
+  if (data === 'edit_today') {
+    const officerForEdit = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officerForEdit) {
+      await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId })
+      await startRegistration(telegramId, chatId, query.from)
+      return
+    }
+    sessions.delete(telegramId)
+    await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId })
+    const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, chatId, messageId: null }
+    sessions.set(telegramId, session)
+    const sent = await bot.sendMessage(chatId, "Updating today's status 👇", {
+      reply_markup: statusKeyboard(),
+    })
+    session.messageId = sent.message_id
     return
   }
 
@@ -1084,6 +1127,21 @@ async function handleCommand(msg) {
       reply_markup: statusKeyboard(),
     })
     session.messageId = sent.message_id
+  }
+
+  if (text.startsWith('/deregister')) {
+    const officer = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officer) {
+      await bot.sendMessage(msg.chat.id, "You don't have a registered profile.", { reply_markup: replyKeyboardMarkup() })
+      return
+    }
+    const displayName = officer.name || officer.telegramName || 'your profile'
+    pendingDeletion.add(telegramId)
+    await bot.sendMessage(
+      msg.chat.id,
+      `⚠️ You're about to delete *${displayName}* and all your logged attendance data. This cannot be undone.\n\nType *YES* to confirm, or anything else to cancel.`,
+      { parse_mode: 'Markdown' }
+    )
   }
 }
 
