@@ -13,7 +13,7 @@ function esc(str) {
 
 router.get('/roster', async (req, res) => {
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  today.setUTCHours(0, 0, 0, 0)
 
   const officers = await prisma.officer.findMany({
     include: {

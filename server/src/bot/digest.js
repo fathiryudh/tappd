@@ -5,7 +5,7 @@ async function sendDailyDigest(digestEmail) {
   if (!digestEmail) { console.warn('DIGEST_EMAIL not set — skipping digest'); return }
 
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  today.setUTCHours(0, 0, 0, 0)
 
   const officers = await prisma.officer.findMany({
     include: {
@@ -80,7 +80,7 @@ async function sendDailyDigest(digestEmail) {
 
 async function getUnreportedOfficers() {
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  today.setUTCHours(0, 0, 0, 0)
   return prisma.officer.findMany({
     where: {
       availability: { none: { date: today } },
