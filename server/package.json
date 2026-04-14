@@ -11,8 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.88.0",
-    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/adapter-libsql": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
@@ -23,8 +22,7 @@
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.2.1",
     "node-telegram-bot-api": "^0.67.0",
-    "nodemailer": "^8.0.5",
-    "pg": "^8.20.0"
+    "nodemailer": "^8.0.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",

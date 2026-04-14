@@ -1,5 +1,5 @@
 const router = require('express').Router()
-const { handleMessage, handleCommand } = require('../bot/telegram')
+const { handleMessage, handleCommand, handleCallbackQuery } = require('../bot/telegram')
 
 router.post('/telegram', (req, res) => {
   const secret = req.headers['x-telegram-bot-api-secret-token']
@@ -7,6 +7,11 @@ router.post('/telegram', (req, res) => {
 
   const update = req.body
   res.sendStatus(200) // respond to Telegram immediately
+
+  if (update.callback_query) {
+    handleCallbackQuery(update.callback_query).catch(console.error)
+    return
+  }
 
   if (update.message) {
     const text = update.message.text || ''

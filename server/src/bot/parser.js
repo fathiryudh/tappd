@@ -1,34 +1,106 @@
-const Anthropic = require('@anthropic-ai/sdk')
+// Pure JS date utilities and keyword matching — no external API calls
 
-const client = new Anthropic()
+// --- Date helpers ---
 
-async function parseAvailabilityMessage(rawMessage, todayISO, tomorrowISO) {
-  const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 150,
-    messages: [{
-      role: 'user',
-      content: `Parse this officer availability message. Return valid JSON only, no explanation.
-
-Message: "${rawMessage}"
-Today: ${todayISO}
-Tomorrow: ${tomorrowISO}
-
-Return: {"status":"AVAILABLE"|"UNAVAILABLE"|"MC"|"ON_LEAVE"|"DUTY"|"UNKNOWN","date":"YYYY-MM-DD","notes":"brief"}
-
-Examples:
-"MC today" → {"status":"MC","date":"${todayISO}","notes":"medical certificate"}
-"available" → {"status":"AVAILABLE","date":"${todayISO}","notes":""}
-"on leave" → {"status":"ON_LEAVE","date":"${todayISO}","notes":"on leave"}
-"duty tmr" → {"status":"DUTY","date":"${tomorrowISO}","notes":"duty tomorrow"}
-"不来" → {"status":"UNAVAILABLE","date":"${todayISO}","notes":"not coming"}
-"报到" → {"status":"AVAILABLE","date":"${todayISO}","notes":"reporting"}
-"sick" → {"status":"MC","date":"${todayISO}","notes":"sick"}
-"off" → {"status":"UNAVAILABLE","date":"${todayISO}","notes":"off today"}`
-    }]
-  })
-
-  return JSON.parse(msg.content[0].text)
+function addDays(isoDate, n) {
+  const d = new Date(isoDate)
+  d.setDate(d.getDate() + n)
+  return d.toISOString().split('T')[0]
 }
 
-module.exports = { parseAvailabilityMessage }
+function getMondayOfWeek(isoDate) {
+  const d = new Date(isoDate)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().split('T')[0]
+}
+
+function getNextWeekMonday(isoDate) {
+  return addDays(getMondayOfWeek(isoDate), 7)
+}
+
+// Next occurrence of targetDow (1=Mon…5=Fri), starting from tomorrow
+// (Today is handled explicitly with the "Today" button)
+function getDayISO(targetDow, todayISO) {
+  const d = new Date(todayISO)
+  d.setDate(d.getDate() + 1)
+  while (d.getDay() !== targetDow) {
+    d.setDate(d.getDate() + 1)
+  }
+  return d.toISOString().split('T')[0]
+}
+
+// --- Expansion ---
+
+function expandRecords(records, todayISO) {
+  const expanded = []
+
+  for (const r of records) {
+    const base = {
+      status: r.status,
+      reason: r.reason || null,
+      notes: r.notes || '',
+      splitDay: !!r.splitDay,
+    }
+
+    if (r.weekRange === 'next') {
+      const mon = getNextWeekMonday(todayISO)
+      for (let i = 0; i <= 4; i++) {
+        expanded.push({ ...base, date: addDays(mon, i) })
+      }
+    } else if (r.weekRange === 'this') {
+      const mon = getMondayOfWeek(todayISO)
+      for (let i = 0; i <= 4; i++) {
+        const d = addDays(mon, i)
+        if (d >= todayISO) expanded.push({ ...base, date: d })
+      }
+    } else if (r.onwards) {
+      const start = new Date(r.date)
+      const dow = start.getDay()
+      const daysLeft = dow >= 1 && dow <= 5 ? 5 - dow : 0
+      for (let i = 0; i <= daysLeft; i++) {
+        expanded.push({ ...base, date: addDays(r.date, i) })
+      }
+    } else {
+      expanded.push({ ...base, date: r.date })
+    }
+  }
+
+  return expanded
+}
+
+// --- Keyword shortcut matching ---
+// Returns an array of records if the message matches a known shortcut,
+// or null if no match (caller should show the keyboard instead).
+
+function keywordMatch(raw, todayISO, tomorrowISO) {
+  const lower = raw.toLowerCase().trim()
+  const hasTmr = /\b(tmr|tmrw|tomorrow)\b/.test(lower)
+  const dateISO = hasTmr ? tomorrowISO : todayISO
+
+  // IN shortcuts
+  if (/^(in|reporting|roger|available|报到)(\s+(tmr|tmrw|tomorrow))?$/.test(lower))
+    return [{ status: 'IN', date: dateISO, reason: null, notes: '' }]
+  if (/^in\s+(today|tdy)$/.test(lower))
+    return [{ status: 'IN', date: todayISO, reason: null, notes: '' }]
+
+  // OUT shortcuts — only match if there's a clear reason keyword
+  if (/\bmc\b|sick|unwell|fever/.test(lower))
+    return [{ status: 'OUT', date: dateISO, reason: 'MC', notes: '' }]
+  if (/\bovl\b|overseas/.test(lower))
+    return [{ status: 'OUT', date: dateISO, reason: 'OVL', notes: '' }]
+  if (/\boil\b/.test(lower))
+    return [{ status: 'OUT', date: dateISO, reason: 'OIL', notes: '' }]
+  if (/\bwfh\b/.test(lower))
+    return [{ status: 'OUT', date: dateISO, reason: 'WFH', notes: '' }]
+  if (/\bvl\b|\bal\b/.test(lower) && !/\boval\b/.test(lower))
+    return [{ status: 'OUT', date: dateISO, reason: 'VL', notes: '' }]
+  if (/\bcourse\b|training/.test(lower))
+    return [{ status: 'OUT', date: dateISO, reason: 'Course', notes: '' }]
+
+  // No keyword match — caller shows keyboard
+  return null
+}
+
+module.exports = { expandRecords, keywordMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday }

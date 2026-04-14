@@ -753,7 +753,8 @@ async function handleMessage(msg) {
   if (rawMessage === '📊 My Status') {
     const officerForStatus = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officerForStatus) { await startRegistration(telegramId, chatId, msg.from); return }
-    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const todayISO = new Date().toISOString().split('T')[0]
+    const today = new Date(todayISO)
     const avail = await prisma.availability.findFirst({
       where: { officerId: officerForStatus.id, date: today },
     })
@@ -1054,8 +1055,8 @@ async function handleCommand(msg) {
   }
 
   if (text.startsWith('/status')) {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const todayISO = new Date().toISOString().split('T')[0]
+    const today = new Date(todayISO)
 
     const officer = await prisma.officer.findUnique({
       where: { telegramId },
