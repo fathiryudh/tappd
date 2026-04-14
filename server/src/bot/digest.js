@@ -1,16 +1,6 @@
 const prisma = require('../config/prisma')
 const { transporter } = require('../utils/mailer')
 
-const STATUS_EMOJI = {
-  AVAILABLE:    '✅',
-  UNAVAILABLE:  '❌',
-  MC:           '🏥',
-  ON_LEAVE:     '🏖️',
-  DUTY:         '🎖️',
-  UNKNOWN:      '❓',
-  NOT_REPORTED: '⚠️',
-}
-
 async function sendDailyDigest(adminId, adminEmail) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -23,18 +13,25 @@ async function sendDailyDigest(adminId, adminEmail) {
     orderBy: { name: 'asc' },
   })
 
-  if (officers.length === 0) return // no officers yet, skip
+  if (officers.length === 0) return
 
-  const lines = officers.map(o => {
+  const rows = officers.map(o => {
     const avail = o.availability[0]
-    const status = avail ? avail.status : 'NOT_REPORTED'
-    const emoji = STATUS_EMOJI[status] || '⚠️'
     const display = o.name || o.telegramName || o.telegramId
-    const note = avail?.notes ? ` (${avail.notes})` : ''
-    return { text: `${emoji} ${display} — ${status}${note}`, status }
+    if (!avail) {
+      return { label: '[?]', text: `[?]   ${display} — Unconfirmed`, status: 'unconfirmed' }
+    }
+    if (avail.status === 'IN') {
+      return { label: '[IN]', text: `[IN]  ${display}`, status: 'in' }
+    }
+    const reason = avail.reason ? ` — ${avail.reason}` : ''
+    return { label: '[OUT]', text: `[OUT] ${display}${reason}`, status: 'out' }
   })
 
-  const available = lines.filter(l => l.status === 'AVAILABLE').length
+  const countIn = rows.filter(r => r.status === 'in').length
+  const countOut = rows.filter(r => r.status === 'out').length
+  const countUnconfirmed = rows.filter(r => r.status === 'unconfirmed').length
+
   const dateStr = today.toLocaleDateString('en-SG', {
     weekday: 'long',
     day: 'numeric',
@@ -46,19 +43,26 @@ async function sendDailyDigest(adminId, adminEmail) {
     `Yappd Daily Availability Report`,
     `${dateStr}`,
     ``,
-    ...lines.map(l => l.text),
+    ...rows.map(r => r.text),
     ``,
-    `Summary: ${available}/${officers.length} available`,
+    `${countIn} in · ${countOut} out · ${countUnconfirmed} unconfirmed`,
   ].join('\n')
 
+  const rowColor = s => s === 'in' ? '#f0fdf4' : s === 'out' ? '#fafafa' : '#fefce8'
+  const labelColor = s => s === 'in' ? '#16a34a' : s === 'out' ? '#dc2626' : '#ca8a04'
+
   const htmlBody = `
-    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;color:#18181b">
+    <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;color:#18181b">
       <h2 style="margin-bottom:4px">Daily Availability Report</h2>
       <p style="color:#71717a;margin-top:0">${dateStr}</p>
-      <p><strong style="font-size:18px">${available}/${officers.length}</strong> <span style="color:#71717a">available today</span></p>
-      <ul style="padding:0;list-style:none;margin:0">
-        ${lines.map(l => `<li style="padding:6px 0;border-bottom:1px solid #f4f4f5">${l.text}</li>`).join('')}
-      </ul>
+      <table style="width:100%;border-collapse:collapse">
+        ${rows.map(r => `
+          <tr style="background:${rowColor(r.status)}">
+            <td style="padding:6px 8px;font-weight:600;color:${labelColor(r.status)};width:48px">${r.label}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #f4f4f5">${r.text.slice(r.label.length).trim()}</td>
+          </tr>`).join('')}
+      </table>
+      <p style="color:#71717a;font-size:13px;margin-top:12px">${countIn} in · ${countOut} out · ${countUnconfirmed} unconfirmed</p>
       <p style="color:#a1a1aa;font-size:12px;margin-top:16px">Sent by Yappd</p>
     </div>
   `
@@ -66,12 +70,23 @@ async function sendDailyDigest(adminId, adminEmail) {
   await transporter.sendMail({
     from: `Yappd <${process.env.SMTP_USER}>`,
     to: adminEmail,
-    subject: `Yappd Daily Roster — ${dateStr} (${available}/${officers.length} available)`,
+    subject: `Yappd Daily Roster — ${dateStr} (${countIn}/${officers.length} in)`,
     text: textBody,
     html: htmlBody,
   })
 
-  console.log(`Digest sent to ${adminEmail}: ${available}/${officers.length} available`)
+  console.log(`Digest sent to ${adminEmail}: ${countIn}/${officers.length} in`)
 }
 
-module.exports = { sendDailyDigest }
+async function getUnreportedOfficers(adminId) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return prisma.officer.findMany({
+    where: {
+      adminId,
+      availability: { none: { date: today } },
+    },
+  })
+}
+
+module.exports = { sendDailyDigest, getUnreportedOfficers }

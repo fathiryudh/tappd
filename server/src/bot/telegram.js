@@ -538,14 +538,14 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatRecord(r) {
-  const reasonStr = r.reason ? ` (${r.reason})` : ''
+  const reasonStr = r.reason ? ` — ${r.reason}` : ''
   if (r.splitDay) {
-    const amHalf = r.notes?.startsWith('AM in') ? '✅ In' : `❌ Out${reasonStr}`
-    const pmHalf = r.notes?.includes('PM in') ? '✅ In' : `❌ Out${reasonStr}`
+    const amHalf = r.notes?.startsWith('AM in') ? 'In' : `Out${reasonStr}`
+    const pmHalf = r.notes?.includes('PM in') ? 'In' : `Out${reasonStr}`
     return `${amHalf} / ${pmHalf}`
   }
-  if (r.status === 'IN') return '✅ In'
-  return `❌ Out${reasonStr}`
+  if (r.status === 'IN') return 'In'
+  return `Out${reasonStr}`
 }
 
 function buildConfirmText(name, records) {
