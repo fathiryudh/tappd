@@ -681,13 +681,28 @@ async function handleMessage(msg) {
   if (pendingRegistration.has(telegramId)) {
     const reg = pendingRegistration.get(telegramId)
     if (reg.step === 'rank') {
-      reg.rank = rawMessage.trim()
+      const rank = rawMessage.trim()
+      if (rank.length > 20) {
+        await bot.sendMessage(chatId, "That seems too long for a rank. Try again (e.g. CPT, LTA, ME3, SGT).")
+        return
+      }
+      reg.rank = rank
       reg.step = 'name'
       await bot.sendMessage(chatId, `And your name? (just your name, e.g. John Tan)`)
       return
     }
     if (reg.step === 'name') {
       const name = rawMessage.trim()
+      if (name.length > 60) {
+        await bot.sendMessage(chatId, "That seems too long for a name. Try again.")
+        return
+      }
+      const existing = await prisma.officer.findUnique({ where: { telegramId } })
+      if (existing) {
+        pendingRegistration.delete(telegramId)
+        await bot.sendMessage(chatId, `You're already registered, ${existing.name || existing.telegramName || 'there'}.`, { reply_markup: replyKeyboardMarkup() })
+        return
+      }
       pendingRegistration.delete(telegramId)
       const adminId = await getDefaultAdminId()
       await prisma.officer.create({
@@ -1032,6 +1047,7 @@ async function handleCommand(msg) {
         { reply_markup: replyKeyboardMarkup() }
       )
     } else {
+      pendingRegistration.delete(telegramId)
       await startRegistration(telegramId, msg.chat.id, msg.from)
     }
     return

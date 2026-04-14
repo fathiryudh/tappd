@@ -50,7 +50,7 @@ Officers DM the bot their daily attendance. No typing required — everything is
 - **OUT** — officer is not at station, always has a reason: `MC`, `VL`, `OVL`, `OIL`, `WFH`, `Course`, `Appointment`, `Family Emergency`, or free text
 
 ### Bot flows
-1. **Self-registration** — new officer DMs bot → name prompt → department keyboard → created under `UNIT_ADMIN_ID`
+1. **Self-registration** — new officer DMs bot → rank prompt → name prompt → created under `BOT_ADMIN_EMAIL` admin
 2. **Single-day flow** — Status keyboard → (Reason if OUT) → Date keyboard → stored
 3. **Split-day flow** — AM status → PM status → Reason (if either OUT) → Date → stored
 4. **Reply Keyboard** (persistent bottom buttons, always visible):
@@ -64,7 +64,6 @@ Officers DM the bot their daily attendance. No typing required — everything is
 ### Session Maps in telegram.js
 ```
 sessions     — single-day availability flow
-regSessions  — self-registration wizard
 weekSessions — week grid flow
 ```
 
@@ -137,7 +136,7 @@ SMTP_USER=                 # Gmail address
 SMTP_PASS=                 # Gmail App Password
 DIGEST_EMAIL=              # admin email for daily digest
 WEBHOOK_BASE_URL=          # ngrok https URL (local dev) or production URL
-UNIT_ADMIN_ID=             # User.id of the admin who owns all officers
+BOT_ADMIN_EMAIL=           # Email of the admin user who owns all officers
 ```
 
 ## Key Packages
