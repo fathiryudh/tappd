@@ -4,7 +4,7 @@ require('express-async-errors')
 const app = require('./app')
 const cron = require('node-cron')
 const prisma = require('./src/config/prisma')
-const { sendDailyDigest } = require('./src/bot/digest')
+const { sendDailyDigest, getUnreportedOfficers } = require('./src/bot/digest')
 
 const PORT = process.env.PORT || 5000
 
@@ -21,16 +21,38 @@ app.listen(PORT, () => {
   }
 })
 
-// Daily digest at 7:00 AM SGT (23:00 UTC previous day)
-cron.schedule('0 23 * * *', async () => {
-  console.log('Running daily digest...')
+// 7:30 AM SGT Mon–Fri = 23:30 UTC Sun–Thu — first nudge for unreported officers
+cron.schedule('30 23 * * 0-4', async () => {
+  console.log('Running 7:30 AM nudge...')
   try {
+    const { nudgeOfficers } = require('./src/bot/telegram')
+    const admins = await prisma.user.findMany({ select: { id: true, email: true } })
+    for (const admin of admins) {
+      try {
+        const unreported = await getUnreportedOfficers(admin.id)
+        await nudgeOfficers(unreported)
+      } catch (err) {
+        console.error(`Nudge failed for ${admin.email}:`, err.message)
+      }
+    }
+  } catch (err) {
+    console.error('Nudge cron error:', err)
+  }
+})
+
+// 8:30 AM SGT Mon–Fri = 00:30 UTC Mon–Fri — digest + second nudge for still-unreported
+cron.schedule('30 0 * * 1-5', async () => {
+  console.log('Running 8:30 AM digest + nudge...')
+  try {
+    const { nudgeOfficers } = require('./src/bot/telegram')
     const admins = await prisma.user.findMany({ select: { id: true, email: true } })
     for (const admin of admins) {
       try {
         await sendDailyDigest(admin.id, admin.email)
+        const unreported = await getUnreportedOfficers(admin.id)
+        await nudgeOfficers(unreported)
       } catch (err) {
-        console.error(`Digest failed for ${admin.email}:`, err.message)
+        console.error(`Digest/nudge failed for ${admin.email}:`, err.message)
       }
     }
   } catch (err) {
