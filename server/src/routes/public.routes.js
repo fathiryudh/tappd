@@ -52,14 +52,28 @@ router.get('/roster', async (req, res) => {
       statusText = 'Unconfirmed'
       statusColor = '#ca8a04'
       rowBg = '#fefce8'
+    } else if (avail.notes && avail.notes.includes('AM')) {
+      // Split day — parse "AM out (MC), PM in" / "AM in, PM out (VL)" etc.
+      countOut++
+      const notes = avail.notes
+      const amIn = notes.startsWith('AM in')
+      const pmIn = notes.includes('PM in')
+      const reasonMatch = notes.match(/out \(([^)]+)\)/)
+      const reason = reasonMatch ? reasonMatch[1].toUpperCase() : ''
+      const amText = amIn ? 'IN' : (reason ? `OUT(${reason})` : 'OUT')
+      const pmText = pmIn ? 'IN' : (reason ? `OUT(${reason})` : 'OUT')
+      statusText = `${amText}/${pmText}`
+      statusColor = '#7c3aed'
+      rowBg = '#faf5ff'
     } else if (avail.status === 'IN') {
       countIn++
-      statusText = 'In'
+      statusText = 'IN'
       statusColor = '#16a34a'
       rowBg = '#f0fdf4'
     } else {
       countOut++
-      statusText = avail.reason ? `Out — ${esc(avail.reason)}` : 'Out'
+      const reason = avail.reason ? avail.reason.toUpperCase() : ''
+      statusText = reason ? `OUT(${reason})` : 'OUT'
       statusColor = '#dc2626'
       rowBg = '#fafafa'
     }
