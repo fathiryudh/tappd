@@ -6,18 +6,21 @@ const cron = require('node-cron')
 const prisma = require('./src/config/prisma')
 const { sendDailyDigest, getUnreportedOfficers } = require('./src/bot/digest')
 
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 8000
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Yappd server running on port ${PORT}`)
 
   // Register Telegram webhook on startup (only if public URL is configured)
   if (process.env.WEBHOOK_BASE_URL && process.env.TELEGRAM_BOT_TOKEN) {
-    const { bot } = require('./src/bot/telegram')
-    const webhookUrl = `${process.env.WEBHOOK_BASE_URL}/api/v1/bot/telegram`
-    bot.setWebHook(webhookUrl, { secret_token: process.env.TELEGRAM_WEBHOOK_SECRET })
-      .then(() => console.log(`Telegram webhook registered: ${webhookUrl}`))
-      .catch(err => console.error('Webhook registration failed:', err.message))
+    try {
+      const { bot } = require('./src/bot/telegram')
+      const webhookUrl = `${process.env.WEBHOOK_BASE_URL}/api/v1/bot/telegram`
+      await bot.setWebHook(webhookUrl, { secret_token: process.env.TELEGRAM_WEBHOOK_SECRET })
+      console.log(`Telegram webhook registered: ${webhookUrl}`)
+    } catch (err) {
+      console.error('Webhook registration failed:', err.message)
+    }
   }
 })
 

@@ -17,15 +17,14 @@ async function sendDailyDigest(adminId, adminEmail) {
 
   const rows = officers.map(o => {
     const avail = o.availability[0]
-    const display = o.name || o.telegramName || o.telegramId
+    const displayName = o.name || o.telegramName || o.telegramId
     if (!avail) {
-      return { label: '[?]', text: `[?]   ${display} — Unconfirmed`, status: 'unconfirmed' }
+      return { label: '[?]', displayName, reasonStr: 'Unconfirmed', status: 'unconfirmed' }
     }
     if (avail.status === 'IN') {
-      return { label: '[IN]', text: `[IN]  ${display}`, status: 'in' }
+      return { label: '[IN]', displayName, reasonStr: '', status: 'in' }
     }
-    const reason = avail.reason ? ` — ${avail.reason}` : ''
-    return { label: '[OUT]', text: `[OUT] ${display}${reason}`, status: 'out' }
+    return { label: '[OUT]', displayName, reasonStr: avail.reason || '', status: 'out' }
   })
 
   const countIn = rows.filter(r => r.status === 'in').length
@@ -43,7 +42,7 @@ async function sendDailyDigest(adminId, adminEmail) {
     `Yappd Daily Availability Report`,
     `${dateStr}`,
     ``,
-    ...rows.map(r => r.text),
+    ...rows.map(r => r.reasonStr ? `${r.label} ${r.displayName} — ${r.reasonStr}` : `${r.label} ${r.displayName}`),
     ``,
     `${countIn} in · ${countOut} out · ${countUnconfirmed} unconfirmed`,
   ].join('\n')
@@ -59,7 +58,7 @@ async function sendDailyDigest(adminId, adminEmail) {
         ${rows.map(r => `
           <tr style="background:${rowColor(r.status)}">
             <td style="padding:6px 8px;font-weight:600;color:${labelColor(r.status)};width:48px">${r.label}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #f4f4f5">${r.text.slice(r.label.length).trim()}</td>
+            <td style="padding:6px 8px;border-bottom:1px solid #f4f4f5">${r.reasonStr ? `${r.displayName} — ${r.reasonStr}` : r.displayName}</td>
           </tr>`).join('')}
       </table>
       <p style="color:#71717a;font-size:13px;margin-top:12px">${countIn} in · ${countOut} out · ${countUnconfirmed} unconfirmed</p>

@@ -1101,10 +1101,14 @@ async function nudgeOfficers(officers) {
   for (const officer of officers) {
     if (!officer.telegramId) continue
     const name = officer.name || officer.telegramName || 'there'
-    await bot.sendMessage(
-      officer.telegramId,
-      `Morning ${name}, quick reminder to update your status before 0830. Just type 'in', 'mc', 'vl' or whatever applies.`
-    )
+    try {
+      await bot.sendMessage(
+        officer.telegramId,
+        `Morning ${name}, quick reminder to update your status before 0830. Just type 'in', 'mc', 'vl' or whatever applies.`
+      )
+    } catch (err) {
+      console.error(`Nudge failed for officer ${officer.telegramId}:`, err.message)
+    }
   }
 }
 
