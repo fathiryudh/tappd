@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 enum TaskStatus {
@@ -31,12 +31,8 @@ model User {
 }
 
 enum AvailabilityStatus {
-  AVAILABLE
-  UNAVAILABLE
-  MC
-  ON_LEAVE
-  DUTY
-  UNKNOWN
+  IN
+  OUT
 }
 
 model Officer {
@@ -45,6 +41,7 @@ model Officer {
   telegramName String?
   name         String?
   rank         String?
+  department   String?
   adminId      String
   admin        User           @relation(fields: [adminId], references: [id], onDelete: Cascade)
   availability Availability[]
@@ -58,8 +55,9 @@ model Availability {
   id         String             @id @default(cuid())
   officerId  String
   officer    Officer            @relation(fields: [officerId], references: [id], onDelete: Cascade)
-  date       DateTime           @db.Date
+  date       DateTime
   status     AvailabilityStatus
+  reason     String?
   rawMessage String
   notes      String?
   createdAt  DateTime           @default(now())
