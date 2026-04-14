@@ -17,6 +17,13 @@ app.listen(PORT, async () => {
       const webhookUrl = `${process.env.WEBHOOK_BASE_URL}/api/v1/bot/telegram`
       await bot.setWebHook(webhookUrl, { secret_token: process.env.TELEGRAM_WEBHOOK_SECRET })
       console.log(`Telegram webhook registered: ${webhookUrl}`)
+      await bot.setMyCommands([
+        { command: 'start',      description: 'Register or view your profile' },
+        { command: 'status',     description: "Check today's attendance" },
+        { command: 'report',     description: 'Log attendance for today' },
+        { command: 'deregister', description: 'Remove your profile' },
+      ])
+      console.log('Telegram command menu registered')
     } catch (err) {
       console.error('Webhook registration failed:', err.message)
     }

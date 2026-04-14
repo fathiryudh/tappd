@@ -1,6 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api')
 const prisma = require('../config/prisma')
-const { expandRecords, keywordMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday } = require('./parser')
+const { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday } = require('./parser')
 
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN)
 
@@ -107,8 +107,8 @@ function dateKeyboard(todayISO, tomorrowISO, isSplitDay = false) {
   ]
   if (!isSplitDay) {
     keyboard.push([
-      { text: '📆  This Week', callback_data: 'date:thisweek' },
-      { text: '📆  Next Week', callback_data: 'date:nextweek' },
+      { text: 'This Week', callback_data: 'date:thisweek' },
+      { text: 'Next Week', callback_data: 'date:nextweek' },
     ])
   }
   keyboard.push([{ text: '❌  Cancel', callback_data: 'cancel' }])
@@ -118,8 +118,8 @@ function dateKeyboard(todayISO, tomorrowISO, isSplitDay = false) {
 function replyKeyboardMarkup() {
   return {
     keyboard: [
-      [{ text: '📋 Report Today' }, { text: '📅 Plan This Week' }],
-      [{ text: '📅 Plan Next Week' }, { text: '📊 My Status' }],
+      [{ text: 'Report Today' }, { text: 'Plan This Week' }],
+      [{ text: 'Plan Next Week' }, { text: 'My Status' }],
     ],
     resize_keyboard: true,
     persistent: true,
@@ -171,7 +171,7 @@ function buildWeekGridText(weekSession) {
     const d = new Date(iso)
     return `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })} ${d.getFullYear()}`
   }
-  return `📅 Week of ${fmt(first)} – ${fmt(last)}\nTap a day to set your status.`
+  return `${fmt(first)} – ${fmt(last)}\nTap a day to set your status.`
 }
 
 // Returns the inline_keyboard for the grid message.
@@ -259,7 +259,7 @@ async function openWeekGrid(telegramId, chatId, isNextWeek, todayISO) {
 async function handleWeekCallback(query, officer, telegramId, chatId, messageId, data, todayISO, tomorrowISO) {
   const session = weekSessions.get(telegramId)
   if (!session) {
-    await bot.editMessageText("This keyboard has expired 😅 Say anything to start again!", {
+    await bot.editMessageText("This keyboard has expired.", {
       chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] },
     })
     return
@@ -275,7 +275,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
   // ── week_cancel ──────────────────────────────────────────────────────────────
   if (data === 'week_cancel') {
     weekSessions.delete(telegramId)
-    await bot.editMessageText('Cancelled! 😊 Say anything to start again.', {
+    await bot.editMessageText('Cancelled.', {
       chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] },
     })
     return
@@ -304,7 +304,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     if (records.length === 0) {
       // Nothing set — toast, keep grid open
       await bot.answerCallbackQuery(query.id, {
-        text: "Nothing set yet — tap a day first 😄",
+        text: "Select a day first.",
         show_alert: false,
       })
       return
@@ -322,7 +322,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
 
     const d = new Date(date)
     const label = `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short', year: 'numeric' })}`
-    await bot.editMessageText(`${label} — what's your status? 👇`, {
+    await bot.editMessageText(`${label} — status?`, {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: {
@@ -362,7 +362,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
       session.step = 'DAY_REASON'
       const d = new Date(date)
       const label = `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
-      await bot.editMessageText(`${label} — what's the reason?`, {
+      await bot.editMessageText(`${label} — reason?`, {
         chat_id: chatId,
         message_id: messageId,
         reply_markup: {
@@ -388,7 +388,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
       session.step = 'DAY_SPLIT_AM'
       const d = new Date(date)
       const label = `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
-      await bot.editMessageText(`${label} — morning status? 🌅`, {
+      await bot.editMessageText(`${label} — morning status?`, {
         chat_id: chatId,
         message_id: messageId,
         reply_markup: {
@@ -413,7 +413,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
 
     if (value === 'OTHER') {
       session.step = 'DAY_REASON_TEXT'
-      await bot.editMessageText("What's the reason? Type it 👇", {
+      await bot.editMessageText("Type the reason.", {
         chat_id: chatId,
         message_id: messageId,
         reply_markup: { inline_keyboard: [[{ text: '← Back to week', callback_data: 'week_back' }]] },
@@ -441,7 +441,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     const d = new Date(date)
     const label = `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
     const amLabel = value === 'IN' ? '✅ In (Morning)' : '❌ Out (Morning)'
-    await bot.editMessageText(`${label} ${amLabel}\n\nNow, afternoon? 🌆`, {
+    await bot.editMessageText(`${amLabel}. ${label} afternoon?`, {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: {
@@ -473,7 +473,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
       session.step = 'DAY_SPLIT_REASON'
       const d = new Date(date)
       const label = `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
-      await bot.editMessageText(`${label} — what's the reason for the out portion?`, {
+      await bot.editMessageText(`${label} — reason for the out portion?`, {
         chat_id: chatId,
         message_id: messageId,
         reply_markup: {
@@ -515,7 +515,7 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
 
     if (value === 'OTHER') {
       session.step = 'DAY_SPLIT_REASON_TEXT'
-      await bot.editMessageText("What's the reason? Type it 👇", {
+      await bot.editMessageText("Type the reason.", {
         chat_id: chatId,
         message_id: messageId,
         reply_markup: { inline_keyboard: [[{ text: '← Back to week', callback_data: 'week_back' }]] },
@@ -551,31 +551,28 @@ function formatRecord(r) {
 }
 
 function buildConfirmText(name, records) {
-  const openers = {
-    IN: [
-      `Roger that, ${name}! Seeya at station 💪`,
-      `Got it ${name}, all noted lah! ✅`,
-      `Yep yep, ${name} is IN 🤙`,
-    ],
-    OUT: [
-      `Noted ${name}, rest well! 🙏`,
-      `Roger ${name}, logged! Take care ya 👍`,
-      `All good ${name}, enjoy the break 😊`,
-    ],
-    SPLIT: [
-      `Split day logged, ${name}! 💡`,
-      `AM/PM combo noted, ${name}! 👍`,
-    ],
-    MULTI: [
-      `Roger that ${name}! Logged ${records.length} days 📅`,
-      `All ${records.length} days noted, ${name}! 💪`,
-    ],
+  const fmtDate = iso => {
+    const d = new Date(iso)
+    return `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
   }
-  let key = records.length > 1 ? 'MULTI' : (records[0]?.splitDay ? 'SPLIT' : (records[0]?.status || 'IN'))
-  const pool = openers[key] || openers.IN
-  const opener = pool[Math.floor(Math.random() * pool.length)]
-  const lines = records.map(r => `${formatRecord(r)} — ${r.date}${r.notes ? ` (${r.notes})` : ''}`)
-  return `${opener}\n\n${lines.join('\n')}`
+
+  if (records.length > 1) {
+    const lines = records.map(r => `${fmtDate(r.date)}  ${formatRecord(r)}`)
+    return `Done — ${records.length} days logged for ${name}.\n\n${lines.join('\n')}`
+  }
+
+  const r = records[0]
+  if (!r) return `Done — logged for ${name}.`
+
+  const dateStr = fmtDate(r.date)
+  if (r.splitDay) {
+    return `Done — split day logged for ${name}, ${dateStr}.`
+  }
+  if (r.status === 'IN') {
+    return `Done — ${name} IN for ${dateStr}.`
+  }
+  const reason = r.reason ? ` (${r.reason})` : ''
+  return `Done — ${name} OUT${reason} for ${dateStr}.`
 }
 
 function buildRecordsFromDateValue(value, session, todayISO, tomorrowISO) {
@@ -656,7 +653,7 @@ async function storeAndConfirm(records, officer, chatId, rawMessage, messageId =
 async function startRegistration(telegramId, chatId, fromUser) {
   const telegramName = fromUser?.username || fromUser?.first_name || ''
   pendingRegistration.set(telegramId, { step: 'rank', rank: null, telegramName })
-  await bot.sendMessage(chatId, "Welcome to Yappd! What's your rank? (e.g. CPT, LTA, ME3, SGT)")
+  await bot.sendMessage(chatId, "What's your rank?")
 }
 
 // ── Message handler ───────────────────────────────────────────────────────────
@@ -677,15 +674,25 @@ async function handleMessage(msg) {
       const officerToDelete = await prisma.officer.findUnique({ where: { telegramId } })
       if (officerToDelete) {
         await prisma.officer.delete({ where: { telegramId } })
-        await bot.sendMessage(chatId, "Profile deleted. You've been removed from the roster. You can re-register anytime with /start. 👋", {
+        await bot.sendMessage(chatId, "Profile deleted. Re-register anytime with /start.", {
           reply_markup: { remove_keyboard: true },
         })
       } else {
-        await bot.sendMessage(chatId, "No profile found to delete.", { reply_markup: replyKeyboardMarkup() })
+        await bot.sendMessage(chatId, "No profile found.", { reply_markup: replyKeyboardMarkup() })
       }
     } else {
-      await bot.sendMessage(chatId, "Deletion cancelled. 👍", { reply_markup: replyKeyboardMarkup() })
+      await bot.sendMessage(chatId, "Deletion cancelled.", { reply_markup: replyKeyboardMarkup() })
     }
+    return
+  }
+
+  // 0.5. Multi-day free-text (e.g. "mon in, tue mc, wed vl" or "14 apr in, 15 apr mc")
+  const multiRecords = multiDayMatch(rawMessage, todayISO)
+  if (multiRecords && multiRecords.length >= 2) {
+    const officer = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officer) { await startRegistration(telegramId, chatId, msg.from); return }
+    const expanded = expandRecords(multiRecords, todayISO)
+    await storeAndConfirm(expanded, officer, chatId, rawMessage, null)
     return
   }
 
@@ -695,12 +702,12 @@ async function handleMessage(msg) {
     if (reg.step === 'rank') {
       const rank = rawMessage.trim()
       if (rank.length > 20) {
-        await bot.sendMessage(chatId, "That seems too long for a rank. Try again (e.g. CPT, LTA, ME3, SGT).")
+        await bot.sendMessage(chatId, "That's too long for a rank. Try again.")
         return
       }
       reg.rank = rank
       reg.step = 'name'
-      await bot.sendMessage(chatId, `And your name? (just your name, e.g. John Tan)`)
+      await bot.sendMessage(chatId, "Your name?")
       return
     }
     if (reg.step === 'name') {
@@ -713,6 +720,7 @@ async function handleMessage(msg) {
       if (existing) {
         pendingRegistration.delete(telegramId)
         await bot.sendMessage(chatId, `You're already registered, ${existing.name || existing.telegramName || 'there'}.`, { reply_markup: replyKeyboardMarkup() })
+
         return
       }
       pendingRegistration.delete(telegramId)
@@ -725,7 +733,7 @@ async function handleMessage(msg) {
       })
       await bot.sendMessage(
         chatId,
-        `Welcome, ${reg.rank} ${name}! You're all set.\n\nYap your status anytime — type 'in', 'mc', 'vl', etc. or tap the buttons below.`,
+        `Registered as ${reg.rank} ${name}.\n\nType in, mc, vl, wfh or use the buttons below.`,
         { reply_markup: replyKeyboardMarkup() }
       )
       return
@@ -734,33 +742,33 @@ async function handleMessage(msg) {
 
   // 1b. Reply Keyboard button taps (persistent bottom keyboard)
   // These come as plain text messages — detect and handle them before anything else
-  if (rawMessage === '📋 Report Today') {
+  if (rawMessage === 'Report Today') {
     const officerForReport = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officerForReport) { await startRegistration(telegramId, chatId, msg.from); return }
     const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, chatId, messageId: null }
     sessions.set(telegramId, session)
-    const sent = await bot.sendMessage(chatId, "What's your availability today? 👇", {
+    const sent = await bot.sendMessage(chatId, "Today's status?", {
       reply_markup: statusKeyboard(),
     })
     session.messageId = sent.message_id
     return
   }
 
-  if (rawMessage === '📅 Plan This Week') {
+  if (rawMessage === 'Plan This Week') {
     const officerForWeek = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officerForWeek) { await startRegistration(telegramId, chatId, msg.from); return }
     await openWeekGrid(telegramId, chatId, false, todayISO)
     return
   }
 
-  if (rawMessage === '📅 Plan Next Week') {
+  if (rawMessage === 'Plan Next Week') {
     const officerForWeek = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officerForWeek) { await startRegistration(telegramId, chatId, msg.from); return }
     await openWeekGrid(telegramId, chatId, true, todayISO)
     return
   }
 
-  if (rawMessage === '📊 My Status') {
+  if (rawMessage === 'My Status') {
     const officerForStatus = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officerForStatus) { await startRegistration(telegramId, chatId, msg.from); return }
     const todayISO = new Date().toISOString().split('T')[0]
@@ -769,14 +777,19 @@ async function handleMessage(msg) {
       where: { officerId: officerForStatus.id, date: today },
     })
     const name = officerForStatus.name || officerForStatus.telegramName || 'Officer'
+    const todayStr = (() => {
+      const d = new Date(todayISO)
+      return `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
+    })()
     if (!avail) {
-      await bot.sendMessage(chatId, `⚠️ ${name}, haven't reported today yet! Tap 📋 Report Today to log it 😄`, {
+      await bot.sendMessage(chatId, `No status logged today, ${name}.`, {
         reply_markup: replyKeyboardMarkup(),
       })
     } else {
-      await bot.sendMessage(chatId, `${name}'s status today: ${formatRecord(avail)}${avail.notes ? ` (${avail.notes})` : ''}`, {
+      const statusLine = formatRecord(avail)
+      await bot.sendMessage(chatId, `${name} — ${todayStr}\n${statusLine}`, {
         reply_markup: {
-          inline_keyboard: [[{ text: '✏️ Edit today\'s status', callback_data: 'edit_today' }]],
+          inline_keyboard: [[{ text: 'Edit today\'s status', callback_data: 'edit_today' }]],
         },
       })
     }
@@ -846,7 +859,7 @@ async function handleMessage(msg) {
     if (session.step === 'REASON_TEXT') {
       session.reason = rawMessage
       session.step = 'DATE'
-      const sent = await bot.sendMessage(chatId, `Got it — "${rawMessage}" 👍\n\nWhich date?`, {
+      const sent = await bot.sendMessage(chatId, `Reason noted. Which date?`, {
         reply_markup: dateKeyboard(todayISO, tomorrowISO),
       })
       session.messageId = sent.message_id
@@ -856,7 +869,7 @@ async function handleMessage(msg) {
     if (session.step === 'SPLIT_REASON_TEXT') {
       session.outReason = rawMessage
       session.step = 'DATE'
-      const sent = await bot.sendMessage(chatId, `Got it — "${rawMessage}" 👍\n\nWhich date?`, {
+      const sent = await bot.sendMessage(chatId, `Reason noted. Which date?`, {
         reply_markup: dateKeyboard(todayISO, tomorrowISO, true),
       })
       session.messageId = sent.message_id
@@ -877,7 +890,7 @@ async function handleMessage(msg) {
   // 5. Default — show STATUS keyboard
   const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, chatId, messageId: null }
   sessions.set(telegramId, session)
-  const sent = await bot.sendMessage(chatId, "What's your availability? 👇", {
+  const sent = await bot.sendMessage(chatId, "Today's status?", {
     reply_markup: statusKeyboard(),
   })
   session.messageId = sent.message_id
@@ -902,7 +915,7 @@ async function handleCallbackQuery(query) {
     pendingRegistration.delete(telegramId)
     weekSessions.delete(telegramId)
     pendingDeletion.delete(telegramId)
-    await bot.editMessageText('Cancelled! 😊 Say anything to start again.', {
+    await bot.editMessageText('Cancelled.', {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: { inline_keyboard: [] },
@@ -922,7 +935,7 @@ async function handleCallbackQuery(query) {
     await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId })
     const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, chatId, messageId: null }
     sessions.set(telegramId, session)
-    const sent = await bot.sendMessage(chatId, "Updating today's status 👇", {
+    const sent = await bot.sendMessage(chatId, "Change today's status?", {
       reply_markup: statusKeyboard(),
     })
     session.messageId = sent.message_id
@@ -933,7 +946,7 @@ async function handleCallbackQuery(query) {
   if (data.startsWith('week_')) {
     const officerForWeek = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officerForWeek) {
-      await bot.editMessageText("Eh you're not registered yet 😅 Say hi to start!", {
+      await bot.editMessageText("Not registered. Send /start to get started.", {
         chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] },
       })
       return
@@ -945,7 +958,7 @@ async function handleCallbackQuery(query) {
   // ── Availability callbacks — need an officer and session ──
   const officer = await prisma.officer.findUnique({ where: { telegramId } })
   if (!officer) {
-    await bot.editMessageText("Eh you're not registered yet 😅 Say hi to start!", {
+    await bot.editMessageText("Not registered. Send /start to get started.", {
       chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] },
     })
     return
@@ -953,7 +966,7 @@ async function handleCallbackQuery(query) {
 
   const session = sessions.get(telegramId)
   if (!session) {
-    await bot.editMessageText("This keyboard has expired 😅 Say anything to start again!", {
+    await bot.editMessageText("This keyboard has expired.", {
       chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] },
     })
     return
@@ -967,21 +980,21 @@ async function handleCallbackQuery(query) {
     if (value === 'IN') {
       session.status = 'IN'
       session.step = 'DATE'
-      await bot.editMessageText("You're IN ✅ — which date?", {
+      await bot.editMessageText("IN — which date?", {
         chat_id: chatId, message_id: messageId,
         reply_markup: dateKeyboard(todayISO, tomorrowISO),
       })
     } else if (value === 'OUT') {
       session.status = 'OUT'
       session.step = 'REASON'
-      await bot.editMessageText("You're OUT ❌ — what's the reason?", {
+      await bot.editMessageText("OUT — reason?", {
         chat_id: chatId, message_id: messageId,
         reply_markup: reasonKeyboard('reason'),
       })
     } else if (value === 'SPLIT') {
       session.splitDay = true
       session.step = 'AM_STATUS'
-      await bot.editMessageText("Split day! What's your status in the morning? 🌅", {
+      await bot.editMessageText("Split day. Morning status?", {
         chat_id: chatId, message_id: messageId,
         reply_markup: amStatusKeyboard(),
       })
@@ -992,14 +1005,14 @@ async function handleCallbackQuery(query) {
   if (type === 'reason') {
     if (value === 'OTHER') {
       session.step = 'REASON_TEXT'
-      await bot.editMessageText("What's the reason? Type it 👇", {
+      await bot.editMessageText("Type the reason.", {
         chat_id: chatId, message_id: messageId,
-        reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'cancel' }]] },
+        reply_markup: { inline_keyboard: [[{ text: '← Cancel', callback_data: 'cancel' }]] },
       })
     } else {
       session.reason = value
       session.step = 'DATE'
-      await bot.editMessageText(`Out — ${value} ❌\n\nWhich date?`, {
+      await bot.editMessageText(`OUT (${value}) — which date?`, {
         chat_id: chatId, message_id: messageId,
         reply_markup: dateKeyboard(todayISO, tomorrowISO),
       })
@@ -1010,8 +1023,8 @@ async function handleCallbackQuery(query) {
   if (type === 'am') {
     session.amStatus = value
     session.step = 'PM_STATUS'
-    const amLabel = value === 'IN' ? '✅ In (Morning)' : '❌ Out (Morning)'
-    await bot.editMessageText(`${amLabel}\n\nNow, afternoon? 🌆`, {
+    const amLabel = value === 'IN' ? 'In (Morning)' : 'Out (Morning)'
+    await bot.editMessageText(`${amLabel}. Afternoon status?`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: pmStatusKeyboard(),
     })
@@ -1023,14 +1036,14 @@ async function handleCallbackQuery(query) {
     const needReason = session.amStatus === 'OUT' || value === 'OUT'
     if (needReason) {
       session.step = 'SPLIT_REASON'
-      await bot.editMessageText("What's the reason for the out portion? 🤔", {
+      await bot.editMessageText("Reason for the out portion?", {
         chat_id: chatId, message_id: messageId,
         reply_markup: reasonKeyboard('splitreason'),
       })
     } else {
       // Both IN
       session.step = 'DATE'
-      await bot.editMessageText("Both IN ✅ — which date?", {
+      await bot.editMessageText("Both IN — which date?", {
         chat_id: chatId, message_id: messageId,
         reply_markup: dateKeyboard(todayISO, tomorrowISO, true),
       })
@@ -1041,14 +1054,14 @@ async function handleCallbackQuery(query) {
   if (type === 'splitreason') {
     if (value === 'OTHER') {
       session.step = 'SPLIT_REASON_TEXT'
-      await bot.editMessageText("What's the reason? Type it 👇", {
+      await bot.editMessageText("Type the reason.", {
         chat_id: chatId, message_id: messageId,
-        reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'cancel' }]] },
+        reply_markup: { inline_keyboard: [[{ text: '← Cancel', callback_data: 'cancel' }]] },
       })
     } else {
       session.outReason = value
       session.step = 'DATE'
-      await bot.editMessageText(`Reason: ${value} — which date?`, {
+      await bot.editMessageText(`OUT (${value}) — which date?`, {
         chat_id: chatId, message_id: messageId,
         reply_markup: dateKeyboard(todayISO, tomorrowISO, true),
       })
@@ -1076,7 +1089,7 @@ async function handleCommand(msg) {
       const name = existing.name || existing.telegramName || 'there'
       await bot.sendMessage(
         msg.chat.id,
-        `Hey ${name}, you're already registered.\n\nType 'in', 'mc', 'vl', etc. or tap the buttons to log your status.`,
+        `Registered as ${name}.\n\nType in, mc, vl, wfh or use the buttons below.`,
         { reply_markup: replyKeyboardMarkup() }
       )
     } else {
@@ -1096,18 +1109,20 @@ async function handleCommand(msg) {
     })
 
     if (!officer) {
-      await bot.sendMessage(msg.chat.id, "Eh you're not registered leh 😅 Say hi first!")
+      await bot.sendMessage(msg.chat.id, "Not registered. Send /start to get started.")
       return
     }
 
     const avail = officer.availability[0]
     if (!avail) {
-      await bot.sendMessage(msg.chat.id, "⚠️ Haven't reported today yet! Yap your status quick 😄", {
+      await bot.sendMessage(msg.chat.id, `No status logged today, ${officer.name || officer.telegramName || 'there'}.`, {
         reply_markup: replyKeyboardMarkup(),
       })
     } else {
       const name = officer.name || officer.telegramName || 'Officer'
-      await bot.sendMessage(msg.chat.id, `${name}'s status today: ${formatRecord(avail)}${avail.notes ? ` (${avail.notes})` : ''}`, {
+      const d = new Date(todayISO)
+      const dateStr = `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
+      await bot.sendMessage(msg.chat.id, `${name} — ${dateStr}\n${formatRecord(avail)}`, {
         reply_markup: replyKeyboardMarkup(),
       })
     }
@@ -1118,12 +1133,12 @@ async function handleCommand(msg) {
     const tomorrowISO = new Date(Date.now() + 86400000).toISOString().split('T')[0]
     const officer = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officer) {
-      await bot.sendMessage(msg.chat.id, "Eh you're not registered leh 😅 Say hi first!")
+      await bot.sendMessage(msg.chat.id, "Not registered. Send /start to get started.")
       return
     }
     const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, chatId: msg.chat.id, messageId: null }
     sessions.set(telegramId, session)
-    const sent = await bot.sendMessage(msg.chat.id, "What's your availability today? 👇", {
+    const sent = await bot.sendMessage(msg.chat.id, "Today's status?", {
       reply_markup: statusKeyboard(),
     })
     session.messageId = sent.message_id
@@ -1132,14 +1147,14 @@ async function handleCommand(msg) {
   if (text.startsWith('/deregister')) {
     const officer = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officer) {
-      await bot.sendMessage(msg.chat.id, "You don't have a registered profile.", { reply_markup: replyKeyboardMarkup() })
+      await bot.sendMessage(msg.chat.id, "No profile found.", { reply_markup: replyKeyboardMarkup() })
       return
     }
     const displayName = officer.name || officer.telegramName || 'your profile'
     pendingDeletion.add(telegramId)
     await bot.sendMessage(
       msg.chat.id,
-      `⚠️ You're about to delete *${displayName}* and all your logged attendance data. This cannot be undone.\n\nType *YES* to confirm, or anything else to cancel.`,
+      `This will permanently delete *${displayName}* and all attendance history.\n\nType *YES* to confirm.`,
       { parse_mode: 'Markdown' }
     )
   }
@@ -1152,7 +1167,7 @@ async function nudgeOfficers(officers) {
     try {
       await bot.sendMessage(
         officer.telegramId,
-        `Morning ${name}, quick reminder to update your status before 0830. Just type 'in', 'mc', 'vl' or whatever applies.`
+        `Morning, ${name}. No status logged yet for today — update before 0830.\n\nType in, mc, vl or tap Report Today.`
       )
     } catch (err) {
       console.error(`Nudge failed for officer ${officer.telegramId}:`, err.message)

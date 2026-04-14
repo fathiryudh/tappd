@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const prisma = require('../config/prisma')
+const { getMondayOfWeek, addDays } = require('../bot/parser')
 
 function esc(str) {
   return String(str)
@@ -177,6 +178,50 @@ router.get('/roster', async (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('Cache-Control', 'no-store')
   res.send(html)
+})
+
+router.get('/weekly-roster', async (req, res) => {
+  const weekParam = req.query.week || new Date().toISOString().split('T')[0]
+  const monday = getMondayOfWeek(weekParam)
+  const week = Array.from({ length: 5 }, (_, i) => addDays(monday, i))
+
+  const weekDates = week.map(iso => {
+    const d = new Date(iso)
+    d.setUTCHours(0, 0, 0, 0)
+    return d
+  })
+
+  const officers = await prisma.officer.findMany({
+    include: {
+      availability: { where: { date: { in: weekDates } } },
+    },
+    orderBy: { name: 'asc' },
+  })
+
+  const officerData = officers.map(officer => {
+    const name = [officer.rank, officer.name].filter(Boolean).join(' ')
+      || officer.telegramName
+      || `ID ${officer.telegramId}`
+    const days = {}
+    for (const iso of week) {
+      const target = new Date(iso)
+      target.setUTCHours(0, 0, 0, 0)
+      const avail = officer.availability.find(
+        a => new Date(a.date).getTime() === target.getTime()
+      )
+      days[iso] = avail
+        ? { status: avail.status, reason: avail.reason || null, notes: avail.notes || '' }
+        : null
+    }
+    return { id: officer.id, name, days }
+  })
+
+  res.setHeader('Cache-Control', 'no-store')
+  res.json({
+    week,
+    today: new Date().toISOString().split('T')[0],
+    officers: officerData,
+  })
 })
 
 module.exports = router
