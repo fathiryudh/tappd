@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+client/package-lock.json
+server/package-lock.json
+skills-lock.json
+
+# Build output and generated artifacts
+client/dist/
+dist/
+build/
+coverage/
+server/generated/
+
+# Local environment and secrets
+.env
+.env.*
+server/.env
+server/.env.*
+client/.env
+client/.env.*
+
+# Logs and OS/editor noise
+*.log
+.DS_Store
+
+# Local state and repo internals
+.git/
+.worktrees/
+.agents/
+.claude/settings.local.json
+
+# Database/runtime artifacts
+server/prisma/yappd.db
+server/prisma/*.db
+server/prisma/*.sqlite
+server/prisma/*.sqlite3
+
+# Large/binary assets that usually add context cost without helping code changes
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.mp4
+*.mov
+*.pdf

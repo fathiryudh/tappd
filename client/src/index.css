@@ -19,19 +19,40 @@
 @theme {
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
+  --color-ink: #1D2939;
+  --color-muted: #667085;
+  --color-line: #E4E7EC;
+  --color-panel: #FFFFFF;
+  --color-shell: #F9FAFB;
+  --color-accent: #1F69FF;
+  --color-brand: #5925DC;
 }
 
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  background: #F7F7F9;
+}
+
 body {
   margin: 0;
-  background-color: #09090b;
-  color: #fafafa;
+  min-height: 100vh;
+  background: #F7F7F9;
+  color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(31, 105, 255, 0.14);
 }
 
 @keyframes yappd-scatter {

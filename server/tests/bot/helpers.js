@@ -122,6 +122,9 @@ function setupMocks(officerOverrides = {}) {
       ]),
       upsert: jest.fn().mockImplementation(({ create }) => Promise.resolve({ id: 'br_new', ...create })),
     },
+    notificationEvent: {
+      create: jest.fn().mockResolvedValue({ id: 'note_1' }),
+    },
   }
 
   jest.doMock('node-telegram-bot-api', () => jest.fn(() => bot))

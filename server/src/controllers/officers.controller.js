@@ -1,10 +1,21 @@
 const prisma = require('../config/prisma')
 
+function normalizePhone(raw) {
+  const digits = raw.replace(/\D/g, '')
+  // Handle SG numbers: +65XXXXXXXX, 65XXXXXXXX, or XXXXXXXX
+  if (digits.length >= 10 && digits.startsWith('65')) return digits.slice(2)
+  if (digits.length === 8) return digits
+  return digits
+}
+
 const getOfficers = async (req, res) => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+  const where = { adminId: req.user.sub }
+  if (req.query.division) where.division = req.query.division
+  if (req.query.branch) where.branch = req.query.branch
   const officers = await prisma.officer.findMany({
-    where: { adminId: req.user.sub },
+    where,
     include: { availability: { where: { date: today }, take: 1 } },
     orderBy: { name: 'asc' },
   })
@@ -12,13 +23,17 @@ const getOfficers = async (req, res) => {
 }
 
 const addOfficer = async (req, res) => {
-  const { telegramId, name, rank } = req.body
-  if (!telegramId) return res.status(400).json({ error: 'telegramId is required' })
+  const { phoneNumber, name, rank, role, division, branch } = req.body
+  if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber is required' })
+  const normalized = normalizePhone(phoneNumber)
   const officer = await prisma.officer.create({
     data: {
-      telegramId: String(telegramId),
+      phoneNumber: normalized,
       name: name || null,
       rank: rank || null,
+      role: role || 'OFFICER',
+      division: division || null,
+      branch: branch || null,
       adminId: req.user.sub,
     },
   })
@@ -30,9 +45,23 @@ const updateOfficer = async (req, res) => {
     where: { id: req.params.id, adminId: req.user.sub },
   })
   if (!existing) return res.status(404).json({ error: 'Officer not found' })
+
+  const data = {}
+  if (req.body.name !== undefined) data.name = req.body.name
+  if (req.body.rank !== undefined) data.rank = req.body.rank
+  if (req.body.role !== undefined) data.role = req.body.role
+  if (req.body.division !== undefined) data.division = req.body.division
+  if (req.body.branch !== undefined) data.branch = req.body.branch
+  if (req.body.phoneNumber !== undefined) {
+    data.phoneNumber = normalizePhone(req.body.phoneNumber)
+    // Phone changed — force re-verification
+    data.telegramId = null
+    data.telegramName = null
+  }
+
   const updated = await prisma.officer.update({
     where: { id: req.params.id },
-    data: { name: req.body.name, rank: req.body.rank },
+    data,
   })
   res.json(updated)
 }
@@ -49,12 +78,15 @@ const deleteOfficer = async (req, res) => {
 const getRoster = async (req, res) => {
   const date = req.query.date ? new Date(req.query.date) : new Date()
   date.setHours(0, 0, 0, 0)
+  const where = { adminId: req.user.sub }
+  if (req.query.division) where.division = req.query.division
+  if (req.query.branch) where.branch = req.query.branch
   const officers = await prisma.officer.findMany({
-    where: { adminId: req.user.sub },
+    where,
     include: { availability: { where: { date }, take: 1 } },
     orderBy: { name: 'asc' },
   })
   res.json(officers)
 }
 
-module.exports = { getOfficers, addOfficer, updateOfficer, deleteOfficer, getRoster }
+module.exports = { getOfficers, addOfficer, updateOfficer, deleteOfficer, getRoster, normalizePhone }

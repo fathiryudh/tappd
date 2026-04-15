@@ -70,6 +70,17 @@ function expandRecords(records, todayISO) {
   return expanded
 }
 
+// --- Input sanitization ---
+
+function sanitizeInput(raw) {
+  if (typeof raw !== 'string') return ''
+  // Truncate to 500 chars
+  let s = raw.slice(0, 500)
+  // Strip control characters except newline/tab
+  s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+  return s.trim()
+}
+
 // --- Keyword shortcut matching ---
 // Returns an array of records if the message matches a known shortcut,
 // or null if no match (caller should show the keyboard instead).
@@ -245,4 +256,4 @@ function multiDayMatch(raw, todayISO) {
   return null
 }
 
-module.exports = { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday }
+module.exports = { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput }

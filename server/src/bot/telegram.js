@@ -5,18 +5,19 @@ const { normalizePhone } = require('../controllers/officers.controller')
 
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN)
 
-;(async () => {
-  try {
-    await bot.setMyCommands([
+// Delay slightly to ensure env vars are fully loaded before making API call
+if (process.env.NODE_ENV !== 'test') {
+  setTimeout(() => {
+    bot.setMyCommands([
       { command: 'start',       description: 'Register or view your profile' },
       { command: 'roster',      description: "View today's attendance roster" },
       { command: 'editprofile', description: 'Edit your profile (name, rank, division, branch, phone)' },
       { command: 'deregister',  description: 'Remove your profile and attendance history' },
     ])
-  } catch (e) {
-    console.warn('[BOT] setMyCommands failed:', e.message || e)
-  }
-})()
+      .then(() => console.log('[BOT] setMyCommands registered successfully'))
+      .catch(e => console.error('[BOT] setMyCommands FAILED:', e.message || e))
+  }, 1000)
+}
 
 function localISODate(date = new Date()) {
   const y = date.getFullYear()
@@ -617,6 +618,21 @@ function buildConfirmText(name, records) {
   return `Done — ${name} OUT${reason} for ${dateStr}.`
 }
 
+function buildNotificationText(officer, record) {
+  const displayName = officer.name || officer.telegramName || 'Officer'
+  const rankPrefix = officer.rank ? `${officer.rank} ` : ''
+  const branchLabel = officer.branch?.name ? ` · ${officer.branch.name}` : ''
+  const divisionLabel = officer.division?.name ? ` · ${officer.division.name}` : ''
+  const eventDate = new Date(record.date)
+  const dateLabel = `${eventDate.getDate()} ${eventDate.toLocaleDateString('en-SG', { month: 'short' })}`
+  const statusLabel = formatRecordPlain(record)
+
+  return {
+    title: `${displayName} updated status`,
+    message: `${rankPrefix}${displayName}${divisionLabel}${branchLabel} set ${dateLabel} to ${statusLabel}.`,
+  }
+}
+
 function buildRecordsFromDateValue(value, session, todayISO, tomorrowISO) {
   let baseRecord
   if (session.splitDay) {
@@ -676,6 +692,24 @@ async function storeAndConfirm(records, officer, chatId, rawMessage, messageId =
         splitDay: !!record.splitDay,
       },
     })
+
+    if (officer.adminId) {
+      const { title, message } = buildNotificationText(officer, record)
+
+      try {
+        await prisma.notificationEvent.create({
+          data: {
+            adminId: officer.adminId,
+            officerId: officer.id,
+            title,
+            message,
+            eventDate: new Date(record.date),
+          },
+        })
+      } catch (err) {
+        console.error('[BOT] notification event create failed:', err.message || err)
+      }
+    }
   }
 
   const displayName = officer.name || officer.telegramName || 'Officer'
@@ -750,7 +784,7 @@ async function handleContactVerification(msg) {
 
   const officer = await prisma.officer.findFirst({
     where: { phoneNumber: phone },
-    include: { division: true },
+    include: { division: true, branch: true },
   })
 
   if (!officer) {
@@ -826,7 +860,7 @@ async function handleRosterCommand(msg) {
 
   const officer = await prisma.officer.findUnique({
     where: { telegramId },
-    include: { division: true },
+    include: { division: true, branch: true },
   })
   if (!officer) {
     await bot.sendMessage(chatId, "Not registered. Send /start to get started.")

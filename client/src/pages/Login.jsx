@@ -1,15 +1,42 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, Lightning, CheckCircle, ArrowsClockwise } from '@phosphor-icons/react'
+import { ArrowRight, BellSimpleRinging, CalendarBlank, ChatsTeardrop } from '@phosphor-icons/react'
 import { useAuth } from '../hooks/useAuth'
 
-const floatingTasks = [
-  { label: 'Finalize API design', tag: 'Backend', done: true },
-  { label: 'Review pull request #42', tag: 'Dev', done: false },
-  { label: 'Write onboarding copy', tag: 'Content', done: true },
-  { label: 'Set up CI pipeline', tag: 'DevOps', done: false },
-  { label: 'Deploy to staging', tag: 'Infra', done: true },
+const MotionDiv = motion.div
+
+const COLORS = {
+  bg: '#F5F7FB',
+  shell: 'rgba(15, 23, 42, 0.06)',
+  surface: '#FFFFFF',
+  soft: '#F8FAFC',
+  line: 'rgba(148, 163, 184, 0.22)',
+  text: '#0F172A',
+  muted: '#475569',
+  brand: '#5925DC',
+  info: '#1F69FF',
+  infoSoft: '#EBF1FF',
+  brandSoft: '#F3EDFF',
+  danger: '#D7260F',
+}
+
+const NOTES = [
+  {
+    icon: ChatsTeardrop,
+    title: 'Telegram-native reporting',
+    body: 'Officers update attendance from chat instead of coming through the web dashboard.',
+  },
+  {
+    icon: BellSimpleRinging,
+    title: 'Live notification feed',
+    body: 'Admin users receive fresh status events inside the dashboard as reporting happens.',
+  },
+  {
+    icon: CalendarBlank,
+    title: 'Weekly operational view',
+    body: 'Roster maintenance and attendance review stay readable across daily and weekly workflows.',
+  },
 ]
 
 export default function Login() {
@@ -35,135 +62,209 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex">
+    <div className="min-h-[100dvh] px-4 py-4 md:px-6 md:py-6" style={{ background: COLORS.bg, color: COLORS.text }}>
+      <div
+        className="pointer-events-none fixed inset-0 opacity-[0.55]"
+        style={{
+          background:
+            'radial-gradient(circle at 18% 16%, rgba(89,37,220,0.12), transparent 26%), radial-gradient(circle at 84% 12%, rgba(31,105,255,0.10), transparent 22%), linear-gradient(180deg, rgba(255,255,255,0.65), rgba(245,247,251,0.94))',
+        }}
+      />
 
-      {/* Left — branded panel */}
-      <div className="hidden lg:flex lg:w-[55%] relative bg-zinc-950 flex-col justify-between p-14 overflow-hidden border-r border-zinc-800">
-
-        {/* Noise grain overlay */}
-        <div
-          className="fixed inset-0 pointer-events-none z-0 opacity-[0.025]"
-          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")', backgroundSize: '128px' }}
-        />
-
-        {/* Wordmark */}
-        <div className="relative z-10">
-          <span className="text-zinc-100 text-lg font-semibold tracking-tight">Yappd</span>
-        </div>
-
-        {/* Center copy */}
-        <div className="relative z-10 space-y-6">
-          <p className="text-xs font-medium tracking-widest text-blue-400 uppercase">AI Productivity</p>
-          <h1 className="text-5xl font-semibold tracking-tighter leading-none text-zinc-100">
-            Tasks managed.<br />
-            <span className="text-zinc-500">Nothing slips.</span>
-          </h1>
-          <p className="text-zinc-500 text-base leading-relaxed max-w-[42ch]">
-            A Kanban board that understands context. An AI that knows what's next.
-          </p>
-
-          {/* Floating task cards */}
-          <div className="mt-8 space-y-2.5">
-            {floatingTasks.map((task, i) => (
-              <motion.div
-                key={task.label}
-                initial={{ opacity: 0, x: -16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + i * 0.08, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="flex items-center gap-3 group"
-              >
-                {task.done
-                  ? <CheckCircle size={15} weight="fill" className="text-blue-500 shrink-0" />
-                  : <ArrowsClockwise size={15} weight="bold" className="text-zinc-600 shrink-0" />
-                }
-                <span className={`text-sm tracking-tight ${task.done ? 'text-zinc-500 line-through' : 'text-zinc-300'}`}>
-                  {task.label}
-                </span>
-                <span className="ml-auto text-[11px] font-medium text-zinc-700 border border-zinc-800 px-1.5 py-0.5 rounded">
-                  {task.tag}
-                </span>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="relative z-10 flex items-center gap-2">
-          <Lightning size={13} weight="fill" className="text-blue-500" />
-          <span className="text-xs text-zinc-600">Phase 1 — Auth complete</span>
-        </div>
-      </div>
-
-      {/* Right — form panel */}
-      <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-20 bg-zinc-950">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-sm"
+      <MotionDiv
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+        className="relative mx-auto grid max-w-[1440px] grid-cols-1 gap-6 lg:min-h-[calc(100dvh-3rem)] lg:grid-cols-[1.08fr_0.92fr]"
+      >
+        <section
+          className="rounded-[2rem] p-2"
+          style={{ background: COLORS.shell, boxShadow: '0 0 0 1px rgba(255,255,255,0.4)' }}
         >
-          {/* Mobile wordmark */}
-          <p className="lg:hidden text-zinc-100 text-base font-semibold tracking-tight mb-10">Yappd</p>
+          <div
+            className="flex h-full flex-col rounded-[calc(2rem-0.5rem)] px-6 py-8 md:px-8 md:py-10 lg:px-10"
+            style={{
+              background:
+                'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.92) 100%)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9)',
+            }}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div
+                  className="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em]"
+                  style={{ background: COLORS.brandSoft, color: COLORS.brand }}
+                >
+                  Yappd
+                </div>
+                <div className="mt-4 max-w-[12ch] text-[2.9rem] font-semibold leading-[0.9] tracking-[-0.08em] md:text-[4.8rem]">
+                  Daily reporting, made precise.
+                </div>
+              </div>
 
-          <h2 className="text-2xl font-semibold tracking-tight text-zinc-100 mb-1">Sign in</h2>
-          <p className="text-sm text-zinc-500 mb-8">Continue to your workspace</p>
-
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-5 px-4 py-3 rounded-lg bg-red-950/60 border border-red-900/60 text-red-400 text-sm"
-            >
-              {error}
-            </motion.div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-zinc-400 tracking-wide">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                placeholder="you@example.com"
-                className="w-full px-3.5 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-600 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all duration-200"
-              />
+              <div
+                className="hidden rounded-[1.5rem] p-1.5 md:block"
+                style={{ background: 'rgba(15, 23, 42, 0.04)', boxShadow: '0 0 0 1px rgba(148,163,184,0.14)' }}
+              >
+                <div
+                  className="rounded-[calc(1.5rem-0.375rem)] px-4 py-4"
+                  style={{ background: 'rgba(255,255,255,0.88)' }}
+                >
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: COLORS.muted }}>
+                    Attendance cadence
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold tracking-[-0.05em]">07:30 / 08:30</div>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-zinc-400 tracking-wide">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-600 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all duration-200"
-              />
+            <div className="py-12 md:py-16 lg:py-24">
+              <div
+                className="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em]"
+                style={{ background: COLORS.infoSoft, color: COLORS.info }}
+              >
+                SCDF 2 Div HQ
+              </div>
+              <p className="mt-6 max-w-[38rem] text-base leading-7 md:text-lg" style={{ color: COLORS.muted, textWrap: 'pretty' }}>
+                A quieter administrative interface for Telegram attendance, officer records, and live roster notifications.
+              </p>
+
+              <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {NOTES.map((item, index) => {
+                  const IconComponent = item.icon
+                  return (
+                    <MotionDiv
+                      key={item.title}
+                      initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      transition={{ duration: 0.62, delay: 0.12 + index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                      className="rounded-[1.5rem] p-1.5"
+                      style={{ background: 'rgba(15,23,42,0.04)', boxShadow: '0 0 0 1px rgba(148,163,184,0.14)' }}
+                    >
+                      <article className="h-full rounded-[calc(1.5rem-0.375rem)] px-5 py-5" style={{ background: 'rgba(255,255,255,0.86)' }}>
+                        <div
+                          className="flex h-11 w-11 items-center justify-center rounded-[1rem]"
+                          style={{ background: COLORS.infoSoft, color: COLORS.info }}
+                        >
+                          <IconComponent size={18} weight="light" />
+                        </div>
+                        <h2 className="mt-4 text-sm font-semibold tracking-[-0.02em]">{item.title}</h2>
+                        <p className="mt-2 text-sm leading-6" style={{ color: COLORS.muted }}>
+                          {item.body}
+                        </p>
+                      </article>
+                    </MotionDiv>
+                  )
+                })}
+              </div>
             </div>
 
-            <motion.button
-              type="submit"
-              disabled={loading}
-              whileTap={{ scale: 0.98, y: 1 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors duration-200 cursor-pointer"
-            >
-              {loading ? 'Signing in...' : (
-                <>Sign in <ArrowRight size={15} weight="bold" /></>
-              )}
-            </motion.button>
-          </form>
+            <div className="mt-auto text-xs uppercase tracking-[0.18em]" style={{ color: 'rgba(71,85,105,0.72)' }}>
+              Dashboard • Roster • Notifications
+            </div>
+          </div>
+        </section>
 
-          <p className="mt-6 text-sm text-zinc-600">
-            No account?{' '}
-            <Link to="/register" className="text-zinc-300 hover:text-zinc-100 font-medium transition-colors duration-150">
-              Register
-            </Link>
-          </p>
-        </motion.div>
-      </div>
+        <section className="flex items-center">
+          <div
+            className="w-full rounded-[2rem] p-2"
+            style={{ background: COLORS.shell, boxShadow: '0 0 0 1px rgba(255,255,255,0.4)' }}
+          >
+            <div
+              className="rounded-[calc(2rem-0.5rem)] px-6 py-8 md:px-8 md:py-10"
+              style={{
+                background: 'rgba(255,255,255,0.94)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)',
+              }}
+            >
+              <div className="max-w-[430px]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: COLORS.muted }}>
+                  Admin access
+                </div>
+                <h1 className="mt-3 text-[2rem] font-semibold tracking-[-0.06em]">Sign in</h1>
+                <p className="mt-2 text-sm leading-6" style={{ color: COLORS.muted }}>
+                  Use your admin account to continue to the operations dashboard.
+                </p>
+
+                {error && (
+                  <div
+                    className="mt-6 rounded-[1.25rem] p-1.5"
+                    style={{ background: 'rgba(215,38,15,0.08)', boxShadow: '0 0 0 1px rgba(215,38,15,0.14)' }}
+                  >
+                    <div className="rounded-[calc(1.25rem-0.375rem)] px-4 py-3 text-sm" style={{ background: 'rgba(255,255,255,0.84)', color: COLORS.danger }}>
+                      {error}
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+                  <Field label="Email">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      required
+                      placeholder="you@example.com"
+                      className="w-full bg-transparent px-4 py-3.5 text-sm outline-none placeholder:text-slate-400"
+                    />
+                  </Field>
+
+                  <Field label="Password">
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full bg-transparent px-4 py-3.5 text-sm outline-none placeholder:text-slate-400"
+                    />
+                  </Field>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="group inline-flex w-full items-center justify-between rounded-full px-5 py-3.5 text-sm font-medium text-white transition-all duration-700 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
+                    style={{ background: COLORS.info, transitionTimingFunction: 'cubic-bezier(0.32,0.72,0,1)' }}
+                  >
+                    <span>{loading ? 'Signing in…' : 'Continue'}</span>
+                    <span
+                      className="flex h-9 w-9 items-center justify-center rounded-full transition-all duration-700 group-hover:translate-x-1 group-hover:-translate-y-[1px]"
+                      style={{ background: 'rgba(255,255,255,0.14)', transitionTimingFunction: 'cubic-bezier(0.32,0.72,0,1)' }}
+                    >
+                      <ArrowRight size={16} weight="bold" />
+                    </span>
+                  </button>
+                </form>
+
+                <p className="mt-6 text-sm" style={{ color: COLORS.muted }}>
+                  Need an admin account?{' '}
+                  <Link to="/register" className="font-medium" style={{ color: COLORS.text }}>
+                    Register
+                  </Link>
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </MotionDiv>
     </div>
+  )
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[11px] font-medium" style={{ color: COLORS.text }}>
+        {label}
+      </span>
+      <div
+        className="rounded-[1.4rem] p-1.5"
+        style={{ background: 'rgba(15,23,42,0.04)', boxShadow: '0 0 0 1px rgba(148,163,184,0.14)' }}
+      >
+        <div className="overflow-hidden rounded-[calc(1.4rem-0.375rem)]" style={{ background: COLORS.soft }}>
+          {children}
+        </div>
+      </div>
+    </label>
   )
 }

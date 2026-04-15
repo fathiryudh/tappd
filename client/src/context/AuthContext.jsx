@@ -1,7 +1,6 @@
-import { createContext, useReducer, useEffect } from 'react'
+import { useReducer, useEffect } from 'react'
 import axiosClient from '../api/axiosClient'
-
-export const AuthContext = createContext(null)
+import { AuthContext } from './auth-context'
 
 const initialState = { user: null, loading: true }
 
