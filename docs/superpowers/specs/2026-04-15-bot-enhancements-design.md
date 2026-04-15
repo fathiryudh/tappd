@@ -66,11 +66,12 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 const DIVISIONS = [
-  '1st Division',
-  '2nd Division',
-  '3rd Division',
-  '4th Division',
+  '1st Div',
+  '2nd Div',
+  '3rd Div',
+  '4th Div',
   'Marine Division',
+  'SCDF HQ',
 ]
 
 async function main() {
@@ -182,7 +183,7 @@ const editSessions = new Map()
 ### Entry Points
 
 - `/editprofile` command → `handleCommand` dispatches to `handleEditProfileCommand(msg)`
-- `handleMessage` catches text input when `editSessions.has(telegramId)` and `editSession.field` is `'name'`, `'rank'`, or `'branch'` (the one typed field)
+- `handleMessage` catches text input when `editSessions.has(telegramId)` and `editSession.field` is `'name'`, `'rank'`, `'division'`, or `'branch'` (typed fields — triggered after tapping "Other")
 - `handleMessage` catches contact messages when `editSession.field === 'phone'`
 
 ### Profile Card Helpers
@@ -223,21 +224,22 @@ function buildProfileText(officer) {
 
 ### Division Selection Keyboard
 
-Division is always chosen from the 5 seeded records — never typed free-form.
+Division shows all known divisions plus an "Other" option — same pattern as Branch. This keeps the system future-proof if new SCDF divisions are created.
 
 ```js
 async function divisionKeyboard() {
   const divisions = await prisma.division.findMany({ orderBy: { name: 'asc' } })
-  return {
-    inline_keyboard: [
-      ...divisions.map(d => [{ text: d.name, callback_data: `edit_div:${d.id}` }]),
-      [{ text: '❌ Cancel', callback_data: 'edit_cancel' }],
-    ],
-  }
+  const rows = divisions.map(d => [{ text: d.name, callback_data: `edit_div:${d.id}` }])
+  rows.push([{ text: '✏️ Other (type it)', callback_data: 'edit_division_other' }])
+  rows.push([{ text: '❌ Cancel',           callback_data: 'edit_cancel' }])
+  return { inline_keyboard: rows }
 }
 ```
 
-Callback prefix: `edit_div:<divisionId>`
+Callback prefixes: `edit_div:<divisionId>`, `edit_division_other`
+
+When officer selects a known division → update Officer directly.
+When officer taps "Other" → `editSession.field = 'division'` → bot prompts to type it → `prisma.division.upsert({ where: { name }, create: { name }, update: {} })` → link to officer.
 
 ### Branch Selection Keyboard
 
@@ -294,8 +296,22 @@ Officer taps [✏️ Division] (callback_data: 'edit_division')
   - editMessageText: "Choose your division:"
     reply_markup: await divisionKeyboard()
 
-Officer taps a division button (callback_data: 'edit_div:<id>')
+Officer taps a known division (callback_data: 'edit_div:<id>')
   - prisma.officer.update({ divisionId: id })
+  - re-fetch officer (with includes)
+  - editSession.field = null
+  - editMessageText: "Updated! Here's your profile:\n\n" + buildProfileText(officer)
+    reply_markup: editProfileKeyboard()
+
+Officer taps [✏️ Other (type it)] (callback_data: 'edit_division_other')
+  - editSession.field = 'division'   (already set — keep it)
+  - editMessageText: "Type your division name:"
+    reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'edit_cancel' }]] }
+
+Officer types "5th Division"
+  - validate: non-empty after trim, ≤ 60 chars
+  - prisma.division.upsert({ where: { name: '5th Division' }, create: { name: '5th Division' }, update: {} })
+  - prisma.officer.update({ divisionId: division.id })
   - re-fetch officer (with includes)
   - editSession.field = null
   - editMessageText: "Updated! Here's your profile:\n\n" + buildProfileText(officer)
@@ -374,7 +390,8 @@ Officer taps [❌ Cancel] (callback_data: 'edit_cancel')
 |---|---|---|
 | Name | `officer.name` | Non-empty after trim, ≤ 60 chars |
 | Rank | `officer.rank` | Non-empty after trim, ≤ 20 chars |
-| Division | `officer.divisionId` | Must be a valid Division id (selected from keyboard — no free text) |
+| Division (existing) | `officer.divisionId` | Must be a valid Division id (selected from keyboard) |
+| Division (new) | `officer.divisionId` | Created via upsert — non-empty after trim, ≤ 60 chars |
 | Branch (new) | `officer.branchId` | Created via upsert — non-empty after trim, ≤ 60 chars |
 | Branch (existing) | `officer.branchId` | Must be a valid Branch id (selected from keyboard) |
 | Phone | `officer.phoneNumber` | normalizePhone() succeeds, not already taken by a different officer |
@@ -383,7 +400,7 @@ On typed validation failure: send a new message with the error and re-prompt the
 
 ### Callback Prefixes Added
 
-`edit_name`, `edit_rank`, `edit_division`, `edit_div:<id>`, `edit_branch`, `edit_br:<id>`, `edit_branch_other`, `edit_phone`, `edit_done`, `edit_cancel`
+`edit_name`, `edit_rank`, `edit_division`, `edit_div:<id>`, `edit_division_other`, `edit_branch`, `edit_br:<id>`, `edit_branch_other`, `edit_phone`, `edit_done`, `edit_cancel`
 
 ---
 
