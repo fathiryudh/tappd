@@ -1266,6 +1266,160 @@ async function handleCallbackQuery(query) {
     return
   }
 
+  // Edit profile callbacks
+  if (data.startsWith('edit_')) {
+    const editSession = editSessions.get(telegramId)
+
+    // edit_done — clear session and confirm
+    if (data === 'edit_done') {
+      editSessions.delete(telegramId)
+      await bot.editMessageText('Profile saved. All done! 👍', {
+        chat_id: chatId, message_id: messageId,
+        reply_markup: { inline_keyboard: [] },
+      })
+      return
+    }
+
+    // edit_cancel — return to profile card without saving
+    if (data === 'edit_cancel') {
+      if (!editSession) {
+        await bot.editMessageText('This keyboard has expired.', {
+          chat_id: chatId, message_id: messageId,
+          reply_markup: { inline_keyboard: [] },
+        })
+        return
+      }
+      const prevField = editSession.field
+      editSession.field = null
+      if (prevField === 'phone') {
+        await bot.sendMessage(chatId, 'Cancelled.', { reply_markup: { remove_keyboard: true } })
+      }
+      const officerForProfile = await prisma.officer.findUnique({
+        where: { telegramId },
+        include: { division: true, branch: true },
+      })
+      await bot.editMessageText(buildProfileText(officerForProfile), {
+        chat_id: chatId, message_id: editSession.messageId,
+        reply_markup: editProfileKeyboard(),
+      })
+      return
+    }
+
+    // All other edit_* callbacks require an active session with matching messageId
+    if (!editSession || editSession.messageId !== messageId) {
+      await bot.editMessageText('This keyboard has expired.', {
+        chat_id: chatId, message_id: messageId,
+        reply_markup: { inline_keyboard: [] },
+      })
+      return
+    }
+
+    // edit_name — prompt to type new name
+    if (data === 'edit_name') {
+      editSession.field = 'name'
+      await bot.editMessageText("What's your new name? Type it below.", {
+        chat_id: chatId, message_id: messageId,
+        reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'edit_cancel' }]] },
+      })
+      return
+    }
+
+    // edit_rank — prompt to type new rank
+    if (data === 'edit_rank') {
+      editSession.field = 'rank'
+      await bot.editMessageText("What's your new rank? Type it below.", {
+        chat_id: chatId, message_id: messageId,
+        reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'edit_cancel' }]] },
+      })
+      return
+    }
+
+    // edit_division — show division selection keyboard
+    if (data === 'edit_division') {
+      editSession.field = 'division'
+      await bot.editMessageText('Choose your division:', {
+        chat_id: chatId, message_id: messageId,
+        reply_markup: await divisionKeyboard(),
+      })
+      return
+    }
+
+    // edit_div:<id> — officer selected a known division
+    if (data.startsWith('edit_div:')) {
+      const divId = data.slice('edit_div:'.length)
+      await prisma.officer.update({ where: { telegramId }, data: { divisionId: divId } })
+      editSession.field = null
+      const officerAfterDiv = await prisma.officer.findUnique({
+        where: { telegramId }, include: { division: true, branch: true },
+      })
+      await bot.editMessageText(buildProfileText(officerAfterDiv), {
+        chat_id: chatId, message_id: editSession.messageId,
+        reply_markup: editProfileKeyboard(),
+      })
+      return
+    }
+
+    // edit_division_other — prompt to type a new division name
+    if (data === 'edit_division_other') {
+      editSession.field = 'division_other'
+      await bot.editMessageText('Type your division name:', {
+        chat_id: chatId, message_id: messageId,
+        reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'edit_cancel' }]] },
+      })
+      return
+    }
+
+    // edit_branch — show branch selection keyboard
+    if (data === 'edit_branch') {
+      editSession.field = 'branch'
+      await bot.editMessageText('Choose your branch or type a new one:', {
+        chat_id: chatId, message_id: messageId,
+        reply_markup: await branchKeyboard(),
+      })
+      return
+    }
+
+    // edit_br:<id> — officer selected a known branch
+    if (data.startsWith('edit_br:')) {
+      const brId = data.slice('edit_br:'.length)
+      await prisma.officer.update({ where: { telegramId }, data: { branchId: brId } })
+      editSession.field = null
+      const officerAfterBr = await prisma.officer.findUnique({
+        where: { telegramId }, include: { division: true, branch: true },
+      })
+      await bot.editMessageText(buildProfileText(officerAfterBr), {
+        chat_id: chatId, message_id: editSession.messageId,
+        reply_markup: editProfileKeyboard(),
+      })
+      return
+    }
+
+    // edit_branch_other — prompt to type a new branch name
+    if (data === 'edit_branch_other') {
+      editSession.field = 'branch_other'
+      await bot.editMessageText('Type your branch name:', {
+        chat_id: chatId, message_id: messageId,
+        reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'edit_cancel' }]] },
+      })
+      return
+    }
+
+    // edit_phone — prompt to share phone
+    if (data === 'edit_phone') {
+      editSession.field = 'phone'
+      await bot.editMessageText('Share your new phone number to update it.', {
+        chat_id: chatId, message_id: messageId,
+        reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'edit_cancel' }]] },
+      })
+      await bot.sendMessage(chatId, 'Tap below to share your number:', {
+        reply_markup: contactKeyboard(),
+      })
+      return
+    }
+
+    return
+  }
+
   // Availability callbacks
   const officer = await prisma.officer.findUnique({ where: { telegramId } })
   if (!officer) {
