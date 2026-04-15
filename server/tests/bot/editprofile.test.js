@@ -232,7 +232,7 @@ describe('/editprofile — done and cancel', () => {
     const msgId = (await bot.sendMessage.mock.results[0].value).message_id
     await handlers.handleCallbackQuery(makeCallback('100', msgId, 'edit_done'))
     expect(bot.editMessageText).toHaveBeenCalledWith(
-      expect.stringContaining('done'),
+      expect.stringContaining('saved'),
       expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
     )
   })

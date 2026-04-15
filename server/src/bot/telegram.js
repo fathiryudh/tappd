@@ -1273,10 +1273,14 @@ async function handleCallbackQuery(query) {
     // edit_done — clear session and confirm
     if (data === 'edit_done') {
       editSessions.delete(telegramId)
-      await bot.editMessageText('Profile saved. All done! 👍', {
-        chat_id: chatId, message_id: messageId,
-        reply_markup: { inline_keyboard: [] },
+      const savedOfficer = await prisma.officer.findUnique({
+        where: { telegramId },
+        include: { division: true, branch: true },
       })
+      await bot.editMessageText(
+        buildProfileText(savedOfficer) + '\n\nAll saved! 👍',
+        { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } }
+      )
       return
     }
 
@@ -1305,6 +1309,7 @@ async function handleCallbackQuery(query) {
       return
     }
 
+    // All edit_* callbacks operate on the same original profile message (editSession.messageId).
     // All other edit_* callbacks require an active session with matching messageId
     if (!editSession || editSession.messageId !== messageId) {
       await bot.editMessageText('This keyboard has expired.', {
