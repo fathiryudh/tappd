@@ -1,8 +1,8 @@
 # Yappd
 
-Telegram bot + public roster website for daily attendance reporting at SCDF 2nd Division HQ @ Tampines.
+Admin dashboard + Telegram bot for daily attendance reporting at SCDF 2nd Division HQ @ Tampines.
 
-Officers DM the bot to log their status for the day. A public web page shows the full roster — no login required.
+Officers DM the bot to log their status for the day. Admins view and manage the weekly roster on a web dashboard — login required.
 
 ---
 
@@ -10,50 +10,59 @@ Officers DM the bot to log their status for the day. A public web page shows the
 
 ### Telegram Bot
 
-- **Self-registration** — any officer sends `/start`, enters their rank and name, and is immediately on the roster. No admin setup required.
+- **Self-registration** — officer sends `/start`, shares phone number, enters rank and name. No admin setup required.
 - **Keyword shortcuts** — type `in`, `mc`, `vl`, `wfh`, `ovl`, `oil`, or `course` to log instantly without tapping keyboards.
 - **Persistent reply keyboard** — four tap-friendly buttons always visible at the bottom of chat:
-  - `📋 Report Today` — opens today's status flow
+  - `📋 Report Today` — opens today's status flow (no date picker — always logs for today)
   - `📅 Plan This Week` — opens the 5-day week planner grid
   - `📅 Plan Next Week` — opens next week's planner grid
   - `📊 My Status` — shows today's logged status, with option to edit
 - **Split-day support** — log AM/PM separately (e.g. `OUT(MC)/IN` or `IN/OUT(VL)`)
 - **Week planner grid** — interactive 5-day planner in a single Telegram message that edits in-place; supports per-day IN/OUT/Split, bulk "All IN" action, pre-filled from existing records
-- **Edit today's status** — tap `📊 My Status` then ✏️ Edit today's status to resubmit
+- **Edit today's status** — tap `📊 My Status` → ✏️ Edit today's status to resubmit
 - **Deregister** — `/deregister` removes your profile and all attendance history (requires typing `YES` to confirm)
 - **Morning nudges** — bot reminds unreported officers at 7:30 AM and 8:30 AM SGT, Mon–Fri
 - **Daily digest email** — summary email sent at 8:30 AM SGT if `DIGEST_EMAIL` is set
 
-### Roster Page
+OUT reasons: `MC`, `VL`, `OVL`, `OIL`, `WFH`, `Course`, `Appointment`, `Family Emergency`, or free text.
 
-Public page at `http://<server>/roster`:
+### Admin Dashboard
 
-- Shows all registered officers and their status for today
-- Status formats: `IN`, `OUT(MC)`, `OUT(VL)`, `IN/OUT(VL)`, `OUT(MC)/IN`, `Unconfirmed`
-- Colour-coded: green (IN), red (OUT), purple (split day), amber (unconfirmed)
-- Auto-refreshes every 5 minutes
-- No login required
+Web app at `http://localhost:5173` (login required):
+
+- **Roster tab** — officer list with inline edit (rank, name, department) and deregister
+- **Attendance tab** — weekly grid showing each officer's status for Mon–Fri; navigate weeks with ← →; today highlighted; auto-refreshes every minute
+
+The standalone `/roster` route shows the same weekly grid without the sidebar.
 
 ---
 
 ## Running Locally
 
 ```bash
-# Terminal 1 — server (port 8000)
+# Install dependencies
+cd server && npm install
+cd ../client && npm install
+
+# Apply migrations
+cd server && npx prisma migrate dev
+
+# Terminal 1 — API server (port 8000)
 cd server && npm run dev
 
-# Terminal 2 — ngrok (required for Telegram webhook)
-ngrok http 8000
-# Copy the https URL → set WEBHOOK_BASE_URL in server/.env → restart server
-```
+# Terminal 2 — Frontend (port 5173)
+cd client && npm run dev
 
-Roster is at: `http://localhost:8000/roster`
+# Terminal 3 — Telegram webhook tunnel
+ngrok http 8000
+# Copy the https:// URL → set WEBHOOK_BASE_URL in server/.env → restart server
+```
 
 ---
 
 ## Environment Variables
 
-Create `server/.env` from `server/.env.example`:
+Create `server/.env`:
 
 ```
 PORT=8000
@@ -73,7 +82,20 @@ SMTP_PORT=587
 SMTP_USER=                   # Gmail address
 SMTP_PASS=                   # Gmail App Password
 DIGEST_EMAIL=                # email to receive daily digest (optional)
+
+BOT_ADMIN_EMAIL=             # email of the admin user who owns all officers
 ```
+
+---
+
+## Testing
+
+```bash
+cd server && npm test          # run all bot tests
+cd server && npm run test:watch # watch mode
+```
+
+Jest test suite covering every bot button and flow — Report Today, week grid, keywords, registration, and chaos/stale-keyboard scenarios. No real DB or Telegram connection needed.
 
 ---
 
@@ -82,11 +104,8 @@ DIGEST_EMAIL=                # email to receive daily digest (optional)
 SQLite file at `server/prisma/yappd.db` — no hosting cost, no setup required.
 
 ```bash
-# Apply migrations
-cd server && npx prisma migrate deploy
-
-# Browse data
-cd server && npx prisma studio
+cd server && npx prisma migrate dev   # apply migrations
+cd server && npx prisma studio        # browse data
 ```
 
 ---
@@ -96,8 +115,6 @@ cd server && npx prisma studio
 | Command | Description |
 |---------|-------------|
 | `/start` | Register or see welcome message if already registered |
-| `/status` | Show today's logged status |
-| `/report` | Open status keyboard |
 | `/deregister` | Delete your profile (asks for YES confirmation) |
 
 ---
@@ -106,6 +123,8 @@ cd server && npx prisma studio
 
 - **Backend**: Node.js + Express
 - **Database**: SQLite via Prisma 7 + `@prisma/adapter-libsql`
+- **Frontend**: React + Vite + Tailwind CSS
 - **Bot**: `node-telegram-bot-api`, webhook mode, inline + reply keyboards
 - **Email**: nodemailer (SMTP)
 - **Scheduler**: node-cron
+- **Tests**: Jest
