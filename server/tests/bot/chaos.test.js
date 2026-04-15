@@ -74,7 +74,7 @@ describe('Rapid fire', () => {
     const msgIds = []
 
     for (let i = 0; i < 5; i++) {
-      await handleMessage(makeMsg(USER_ID, 'Report Today'))
+      await handleMessage(makeMsg(USER_ID, '📋 Report Today'))
       const result = await bot.sendMessage.mock.results[i].value
       msgIds.push(result.message_id)
     }
@@ -92,9 +92,9 @@ describe('Rapid fire', () => {
   })
 
   test('Plan This Week × 3 → no crash, sendMessage called 3 times', async () => {
-    await handleMessage(makeMsg(USER_ID, 'Plan This Week'))
-    await handleMessage(makeMsg(USER_ID, 'Plan This Week'))
-    await handleMessage(makeMsg(USER_ID, 'Plan This Week'))
+    await handleMessage(makeMsg(USER_ID, '📅 Plan This Week'))
+    await handleMessage(makeMsg(USER_ID, '📅 Plan This Week'))
+    await handleMessage(makeMsg(USER_ID, '📅 Plan This Week'))
 
     expect(bot.sendMessage).toHaveBeenCalledTimes(3)
     expect(prisma.availability.upsert).not.toHaveBeenCalled()
@@ -112,10 +112,10 @@ describe('Mixed sessions', () => {
 
   test('Report Today then Plan This Week → week_cancel → "Cancelled.", no upsert', async () => {
     // Open Report Today (creates single-day session)
-    await handleMessage(makeMsg(USER_ID, 'Report Today'))
+    await handleMessage(makeMsg(USER_ID, '📋 Report Today'))
 
     // Open Plan This Week (creates week session)
-    await handleMessage(makeMsg(USER_ID, 'Plan This Week'))
+    await handleMessage(makeMsg(USER_ID, '📅 Plan This Week'))
     // sendMessage calls: 1 for Report Today, 1 for Plan This Week grid
     const weekMsgId = (await bot.sendMessage.mock.results[1].value).message_id
 
@@ -192,7 +192,7 @@ describe('Post-completion double-tap', () => {
   })
 
   test('Complete Report Today → IN, then tap status:OUT on same msgId → "This keyboard has expired.", upsert once', async () => {
-    await handleMessage(makeMsg(USER_ID, 'Report Today'))
+    await handleMessage(makeMsg(USER_ID, '📋 Report Today'))
     const mid = (await bot.sendMessage.mock.results[0].value).message_id
 
     // Complete the flow

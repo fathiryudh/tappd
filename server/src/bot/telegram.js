@@ -8,10 +8,10 @@ const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN)
 ;(async () => {
   try {
     await bot.setMyCommands([
-      { command: 'start',       description: 'Register or view welcome' },
-      { command: 'roster',      description: 'View today\'s roster' },
-      { command: 'editprofile', description: 'Edit your profile' },
-      { command: 'deregister',  description: 'Remove your profile' },
+      { command: 'start',       description: 'Register or view your profile' },
+      { command: 'roster',      description: "View today's attendance roster" },
+      { command: 'editprofile', description: 'Edit your profile (name, rank, division, branch, phone)' },
+      { command: 'deregister',  description: 'Remove your profile and attendance history' },
     ])
   } catch (e) {
     console.warn('[BOT] setMyCommands failed:', e.message)
@@ -123,8 +123,8 @@ function dateKeyboard(todayISO, tomorrowISO, isSplitDay = false) {
 function replyKeyboardMarkup() {
   return {
     keyboard: [
-      [{ text: 'Report Today' }, { text: 'Plan This Week' }],
-      [{ text: 'Plan Next Week' }, { text: 'My Status' }],
+      [{ text: '📋 Report Today' }, { text: '📊 My Status' }],
+      [{ text: '📅 Plan This Week' }, { text: '📅 Plan Next Week' }],
       [{ text: 'View Roster' }],
     ],
     resize_keyboard: true,
@@ -740,7 +740,7 @@ async function handleRosterCommand(msg) {
   const where = {}
   if (targetDivisionName) {
     const div = await prisma.division.findFirst({
-      where: { name: { contains: targetDivisionName } },
+      where: { name: { contains: targetDivisionName, mode: 'insensitive' } },
     })
     if (!div) {
       await bot.sendMessage(chatId,
@@ -936,7 +936,7 @@ async function handleMessage(msg) {
   }
 
   // 1. Reply Keyboard button taps
-  if (rawMessage === 'Report Today') {
+  if (rawMessage === '📋 Report Today') {
     const officer = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officer) { await promptVerification(chatId); return }
     if (officer.role === 'NSF') { await bot.sendMessage(chatId, "NSFs can't log attendance. Use /roster to view the roster."); return }
@@ -959,7 +959,7 @@ async function handleMessage(msg) {
     return
   }
 
-  if (rawMessage === 'Plan This Week') {
+  if (rawMessage === '📅 Plan This Week') {
     const officer = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officer) { await promptVerification(chatId); return }
     if (officer.role === 'NSF') { await bot.sendMessage(chatId, "NSFs can't log attendance. Use /roster to view the roster."); return }
@@ -967,7 +967,7 @@ async function handleMessage(msg) {
     return
   }
 
-  if (rawMessage === 'Plan Next Week') {
+  if (rawMessage === '📅 Plan Next Week') {
     const officer = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officer) { await promptVerification(chatId); return }
     if (officer.role === 'NSF') { await bot.sendMessage(chatId, "NSFs can't log attendance. Use /roster to view the roster."); return }
@@ -975,7 +975,7 @@ async function handleMessage(msg) {
     return
   }
 
-  if (rawMessage === 'My Status') {
+  if (rawMessage === '📊 My Status') {
     const officer = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officer) { await promptVerification(chatId); return }
     const today = new Date(todayISO)

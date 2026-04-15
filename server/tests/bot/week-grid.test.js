@@ -13,7 +13,7 @@ describe('Week grid flows', () => {
 
   // ── Helper to open the grid and get grid metadata ───────────────────────────
 
-  async function openGrid(text = 'Plan This Week') {
+  async function openGrid(text = '📅 Plan This Week') {
     await handleMessage(makeMsg(USER_ID, text))
     const mid = (await bot.sendMessage.mock.results[0].value).message_id
     const gridKeyboard = bot.sendMessage.mock.calls[0][2].reply_markup.inline_keyboard
@@ -26,7 +26,7 @@ describe('Week grid flows', () => {
   // ── 1. Open grid ─────────────────────────────────────────────────────────────
 
   test('Plan This Week → sendMessage with date range text and week_day buttons', async () => {
-    await handleMessage(makeMsg(USER_ID, 'Plan This Week'))
+    await handleMessage(makeMsg(USER_ID, '📅 Plan This Week'))
 
     expect(bot.sendMessage).toHaveBeenCalledTimes(1)
     const [chatId, text, opts] = bot.sendMessage.mock.calls[0]
@@ -45,7 +45,7 @@ describe('Week grid flows', () => {
   // ── 2. Open next week ────────────────────────────────────────────────────────
 
   test('Plan Next Week → sendMessage called with inline keyboard', async () => {
-    await handleMessage(makeMsg(USER_ID, 'Plan Next Week'))
+    await handleMessage(makeMsg(USER_ID, '📅 Plan Next Week'))
 
     expect(bot.sendMessage).toHaveBeenCalledTimes(1)
     const [, , opts] = bot.sendMessage.mock.calls[0]
@@ -227,7 +227,7 @@ describe('Week grid flows', () => {
   test('NSF officer → "Plan This Week" → sendMessage text matches /NSF/i', async () => {
     ;({ bot, prisma, handlers: { handleMessage, handleCallbackQuery } } = setupMocks({ role: 'NSF' }))
 
-    await handleMessage(makeMsg(USER_ID, 'Plan This Week'))
+    await handleMessage(makeMsg(USER_ID, '📅 Plan This Week'))
 
     expect(bot.sendMessage).toHaveBeenCalledTimes(1)
     const sentText = bot.sendMessage.mock.calls[0][1]
@@ -240,7 +240,7 @@ describe('Week grid flows', () => {
     ;({ bot, prisma, handlers: { handleMessage, handleCallbackQuery } } = setupMocks())
     prisma.officer.findUnique.mockResolvedValue(null)
 
-    await handleMessage(makeMsg(USER_ID, 'Plan This Week'))
+    await handleMessage(makeMsg(USER_ID, '📅 Plan This Week'))
 
     expect(prisma.availability.upsert).not.toHaveBeenCalled()
     expect(bot.sendMessage).toHaveBeenCalledTimes(1)
