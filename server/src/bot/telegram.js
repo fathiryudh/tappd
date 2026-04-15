@@ -705,6 +705,40 @@ async function handleContactVerification(msg) {
     return
   }
 
+  // Check if this contact share is for an edit_phone flow
+  const editSession = editSessions.get(telegramId)
+  if (editSession?.field === 'phone') {
+    const phone = contact.phone_number
+
+    const existing = await prisma.officer.findFirst({
+      where: { phoneNumber: phone },
+    })
+    const currentOfficer = await prisma.officer.findUnique({
+      where: { telegramId },
+      include: { division: true, branch: true },
+    })
+
+    if (existing && existing.id !== currentOfficer?.id) {
+      await bot.sendMessage(chatId, "That number is already linked to another account. No changes made.")
+      return
+    }
+
+    await prisma.officer.update({ where: { telegramId }, data: { phoneNumber: phone } })
+    await bot.sendMessage(chatId, '✅ Phone updated.', { reply_markup: { remove_keyboard: true } })
+
+    editSession.field = null
+    const updated = await prisma.officer.findUnique({
+      where: { telegramId },
+      include: { division: true, branch: true },
+    })
+    await bot.editMessageText(`Updated!\n\n${buildProfileText(updated)}`, {
+      chat_id: chatId,
+      message_id: editSession.messageId,
+      reply_markup: editProfileKeyboard(),
+    })
+    return
+  }
+
   const phone = normalizePhone(contact.phone_number)
 
   const officer = await prisma.officer.findFirst({
@@ -974,10 +1008,64 @@ async function handleMessage(msg) {
   }
 
   const rawMessage = sanitizeInput(msg.text || '')
-  if (!rawMessage) return
 
   const todayISO = localISODate()
   const tomorrowISO = localISODate(new Date(Date.now() + 86400000))
+
+  // Edit profile — typed input (name, rank, division_other, branch_other)
+  if (editSessions.has(telegramId) && !msg.contact) {
+    const editSession = editSessions.get(telegramId)
+    const textFields = ['name', 'rank', 'division_other', 'branch_other']
+    if (textFields.includes(editSession.field)) {
+      const value = rawMessage.trim()
+
+      if (!value) {
+        await bot.sendMessage(chatId, "Can't be empty — try again.")
+        return
+      }
+
+      const maxLen = editSession.field === 'rank' ? 20 : 60
+      if (value.length > maxLen) {
+        await bot.sendMessage(chatId, `Too long — max ${maxLen} characters.`)
+        return
+      }
+
+      const field = editSession.field
+
+      if (field === 'division_other') {
+        const division = await prisma.division.upsert({
+          where: { name: value },
+          create: { name: value },
+          update: {},
+        })
+        await prisma.officer.update({ where: { telegramId }, data: { divisionId: division.id } })
+      } else if (field === 'branch_other') {
+        const branch = await prisma.branch.upsert({
+          where: { name: value },
+          create: { name: value },
+          update: {},
+        })
+        await prisma.officer.update({ where: { telegramId }, data: { branchId: branch.id } })
+      } else {
+        // field is 'name' or 'rank'
+        await prisma.officer.update({ where: { telegramId }, data: { [field]: value } })
+      }
+
+      editSession.field = null
+      const updatedOfficer = await prisma.officer.findUnique({
+        where: { telegramId },
+        include: { division: true, branch: true },
+      })
+      await bot.editMessageText(`Updated!\n\n${buildProfileText(updatedOfficer)}`, {
+        chat_id: chatId,
+        message_id: editSession.messageId,
+        reply_markup: editProfileKeyboard(),
+      })
+      return
+    }
+  }
+
+  if (!rawMessage) return
 
   // 0. Pending deletion confirmation
   if (pendingDeletion.has(telegramId)) {
