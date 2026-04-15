@@ -21,13 +21,30 @@ enum AvailabilityStatus {
   OUT
 }
 
+model Division {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  officers Officer[]
+}
+
+model Branch {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  officers Officer[]
+}
+
 model Officer {
   id           String         @id @default(cuid())
-  telegramId   String         @unique
+  telegramId   String?        @unique
   telegramName String?
+  phoneNumber  String         @unique
   name         String?
   rank         String?
-  department   String?
+  role         String         @default("OFFICER")
+  divisionId   String?
+  division     Division?      @relation(fields: [divisionId], references: [id])
+  branchId     String?
+  branch       Branch?        @relation(fields: [branchId], references: [id])
   adminId      String?
   admin        User?          @relation(fields: [adminId], references: [id], onDelete: SetNull)
   availability Availability[]
@@ -35,6 +52,7 @@ model Officer {
   updatedAt    DateTime       @updatedAt
 
   @@index([adminId])
+  @@index([divisionId])
 }
 
 model Availability {
@@ -46,10 +64,10 @@ model Availability {
   reason     String?
   rawMessage String
   notes      String?
+  splitDay   Boolean            @default(false)
   createdAt  DateTime           @default(now())
 
   @@unique([officerId, date])
   @@index([officerId])
   @@index([date])
 }
-
