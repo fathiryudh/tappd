@@ -14,7 +14,7 @@ const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN)
       { command: 'deregister',  description: 'Remove your profile and attendance history' },
     ])
   } catch (e) {
-    console.warn('[BOT] setMyCommands failed:', e.message)
+    console.warn('[BOT] setMyCommands failed:', e.message || e)
   }
 })()
 
@@ -724,8 +724,9 @@ async function handleRosterCommand(msg) {
   const today = new Date(todayISO)
 
   // Only extract args when called from a /roster command (not from 'View Roster' button)
-  const args = (msg.text || '').startsWith('/roster')
-    ? (msg.text || '').replace(/^\/roster\s*/i, '').trim()
+  const msgText = msg.text || ''
+  const args = msgText.startsWith('/roster')
+    ? msgText.replace(/^\/roster\s*/i, '').trim()
     : ''
 
   let targetDivisionName
@@ -739,9 +740,10 @@ async function handleRosterCommand(msg) {
 
   const where = {}
   if (targetDivisionName) {
-    const div = await prisma.division.findFirst({
-      where: { name: { contains: targetDivisionName, mode: 'insensitive' } },
-    })
+    const allDivisions = await prisma.division.findMany()
+    const div = allDivisions.find(
+      d => d.name.toLowerCase().includes(targetDivisionName.toLowerCase())
+    )
     if (!div) {
       await bot.sendMessage(chatId,
         `No division found matching "${targetDivisionName}".`,
