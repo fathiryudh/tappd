@@ -29,6 +29,9 @@ function localISODate(date = new Date()) {
 const sessions = new Map()
 const weekSessions = new Map()
 const pendingDeletion = new Set()
+const editSessions = new Map()
+// keyed by telegramId (string)
+// value: { field: 'name'|'rank'|'division'|'branch'|'phone'|null, messageId: number|null, chatId: number }
 
 // ── Keyboard builders ─────────────────────────────────────────────────────────
 
@@ -138,6 +141,52 @@ function contactKeyboard() {
     resize_keyboard: true,
     one_time_keyboard: true,
   }
+}
+
+function editProfileKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: '✏️ Name',     callback_data: 'edit_name' },
+        { text: '✏️ Rank',     callback_data: 'edit_rank' },
+      ],
+      [
+        { text: '✏️ Division', callback_data: 'edit_division' },
+        { text: '✏️ Branch',   callback_data: 'edit_branch' },
+      ],
+      [{ text: '✏️ Phone', callback_data: 'edit_phone' }],
+      [{ text: '✅ Done',  callback_data: 'edit_done'  }],
+    ],
+  }
+}
+
+function buildProfileText(officer) {
+  const name     = officer.name           || '(not set)'
+  const rank     = officer.rank           || '(not set)'
+  const division = officer.division?.name || '(not set)'
+  const branch   = officer.branch?.name   || '(not set)'
+  const phone    = officer.phoneNumber    || '(not set)'
+  return (
+    `👤 Your profile:\n\n` +
+    `Name: ${name}\nRank: ${rank}\nDivision: ${division}\nBranch: ${branch}\nPhone: ${phone}\n\n` +
+    `What would you like to update?`
+  )
+}
+
+async function divisionKeyboard() {
+  const divisions = await prisma.division.findMany({ orderBy: { name: 'asc' } })
+  const rows = divisions.map(d => [{ text: d.name, callback_data: `edit_div:${d.id}` }])
+  rows.push([{ text: '✏️ Other (type it)', callback_data: 'edit_division_other' }])
+  rows.push([{ text: '❌ Cancel',           callback_data: 'edit_cancel' }])
+  return { inline_keyboard: rows }
+}
+
+async function branchKeyboard() {
+  const branches = await prisma.branch.findMany({ orderBy: { name: 'asc' } })
+  const rows = branches.map(b => [{ text: b.name, callback_data: `edit_br:${b.id}` }])
+  rows.push([{ text: '✏️ Other (type it)', callback_data: 'edit_branch_other' }])
+  rows.push([{ text: '❌ Cancel',           callback_data: 'edit_cancel' }])
+  return { inline_keyboard: rows }
 }
 
 // ── Week grid utilities ───────────────────────────────────────────────────────
@@ -703,6 +752,29 @@ async function handleContactVerification(msg) {
       { reply_markup: replyKeyboardMarkup() }
     )
   }
+}
+
+// ── Edit profile ──────────────────────────────────────────────────────────────
+
+async function handleEditProfileCommand(msg) {
+  const telegramId = String(msg.from.id)
+  const chatId = msg.chat.id
+
+  const officer = await prisma.officer.findUnique({
+    where: { telegramId },
+    include: { division: true, branch: true },
+  })
+  if (!officer) {
+    await promptVerification(chatId)
+    return
+  }
+
+  editSessions.delete(telegramId)
+
+  const sent = await bot.sendMessage(chatId, buildProfileText(officer), {
+    reply_markup: editProfileKeyboard(),
+  })
+  editSessions.set(telegramId, { field: null, messageId: sent.message_id, chatId })
 }
 
 // ── Roster display ────────────────────────────────────────────────────────────
@@ -1400,6 +1472,11 @@ async function handleCommand(msg) {
       reply_markup: statusKeyboard(),
     })
     session.messageId = sent.message_id
+    return
+  }
+
+  if (text.startsWith('/editprofile')) {
+    await handleEditProfileCommand(msg)
     return
   }
 
