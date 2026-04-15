@@ -50,19 +50,23 @@ function makeGroupMsg(telegramId, text, chatId = 200) {
   }
 }
 
-/** Default registered officer stub — override any field with overrides */
+/** Default registered officer stub — override any field with overrides.
+ *  division and branch are relation objects (matching Prisma include shape).
+ */
 function makeOfficer(overrides = {}) {
   return {
-    id: 1,
+    id: 'off_1',
     telegramId: '100',
     telegramName: 'testuser',
     name: 'Test Officer',
     rank: 'CPT',
     role: null,
-    division: '2nd Div',
-    branch: 'Ops',
+    divisionId: 'div_1',
+    division: { id: 'div_1', name: '2nd Div' },
+    branchId: 'br_1',
+    branch: { id: 'br_1', name: 'Ops' },
     phoneNumber: '+6591234567',
-    adminId: 1,
+    adminId: 'adm_1',
     availability: [],
     ...overrides,
   }
@@ -85,21 +89,38 @@ function setupMocks(officerOverrides = {}) {
     editMessageText: jest.fn().mockResolvedValue({}),
     editMessageReplyMarkup: jest.fn().mockResolvedValue({}),
     answerCallbackQuery: jest.fn().mockResolvedValue({}),
+    setMyCommands: jest.fn().mockResolvedValue({}),
   }
+
+  const officer = makeOfficer(officerOverrides)
 
   const prisma = {
     officer: {
-      findUnique: jest.fn().mockResolvedValue(makeOfficer(officerOverrides)),
+      findUnique: jest.fn().mockResolvedValue(officer),
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
-      update: jest.fn().mockResolvedValue(makeOfficer(officerOverrides)),
-      delete: jest.fn().mockResolvedValue(makeOfficer(officerOverrides)),
-      create: jest.fn().mockResolvedValue(makeOfficer(officerOverrides)),
+      update: jest.fn().mockResolvedValue(officer),
+      delete: jest.fn().mockResolvedValue(officer),
+      create: jest.fn().mockResolvedValue(officer),
     },
     availability: {
       upsert: jest.fn().mockResolvedValue({}),
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
+    },
+    division: {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'div_1', name: '2nd Div' },
+        { id: 'div_2', name: 'SCDF HQ' },
+      ]),
+      findFirst: jest.fn().mockResolvedValue({ id: 'div_1', name: '2nd Div' }),
+      upsert: jest.fn().mockImplementation(({ create }) => Promise.resolve({ id: 'div_new', ...create })),
+    },
+    branch: {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'br_1', name: 'Ops' },
+      ]),
+      upsert: jest.fn().mockImplementation(({ create }) => Promise.resolve({ id: 'br_new', ...create })),
     },
   }
 
