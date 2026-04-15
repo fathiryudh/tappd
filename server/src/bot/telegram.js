@@ -708,7 +708,7 @@ async function handleContactVerification(msg) {
   // Check if this contact share is for an edit_phone flow
   const editSession = editSessions.get(telegramId)
   if (editSession?.field === 'phone') {
-    const phone = contact.phone_number
+    const phone = normalizePhone(contact.phone_number)
 
     const existing = await prisma.officer.findFirst({
       where: { phoneNumber: phone },
@@ -718,7 +718,14 @@ async function handleContactVerification(msg) {
       include: { division: true, branch: true },
     })
 
-    if (existing && existing.id !== currentOfficer?.id) {
+    if (!currentOfficer) {
+      editSessions.delete(telegramId)
+      await bot.sendMessage(chatId, "Your profile no longer exists. Please /start to re-register.", {
+        reply_markup: { remove_keyboard: true },
+      })
+      return
+    }
+    if (existing && existing.id !== currentOfficer.id) {
       await bot.sendMessage(chatId, "That number is already linked to another account. No changes made.")
       return
     }

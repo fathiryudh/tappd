@@ -206,7 +206,7 @@ describe('/editprofile — edit phone', () => {
     prisma.officer.findFirst.mockResolvedValue(null) // not taken
     await handlers.handleMessage(makeContactMsg('100', '+6598765432'))
     expect(prisma.officer.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ phoneNumber: '+6598765432' }) })
+      expect.objectContaining({ data: expect.objectContaining({ phoneNumber: '98765432' }) })
     )
   })
 
