@@ -1,27 +1,33 @@
 const TelegramBot = require('node-telegram-bot-api')
 const prisma = require('../config/prisma')
-const { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday } = require('./parser')
+const { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput } = require('./parser')
+const { normalizePhone } = require('../controllers/officers.controller')
 
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN)
 
+;(async () => {
+  try {
+    await bot.setMyCommands([
+      { command: 'start',       description: 'Register or view welcome' },
+      { command: 'roster',      description: 'View today\'s roster' },
+      { command: 'editprofile', description: 'Edit your profile' },
+      { command: 'deregister',  description: 'Remove your profile' },
+    ])
+  } catch (e) {
+    console.warn('[BOT] setMyCommands failed:', e.message)
+  }
+})()
+
+function localISODate(date = new Date()) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 // ── Session stores ────────────────────────────────────────────────────────────
-// Availability session: telegramId → { step, status, reason, splitDay, amStatus, pmStatus, outReason, chatId, messageId }
 const sessions = new Map()
-// Registration session: telegramId → { step: 'rank' | 'name', rank: string, telegramName: string }
-const pendingRegistration = new Map()
-// Week planner session: telegramId → {
-//   step: 'GRID' | 'DAY_STATUS' | 'DAY_SPLIT_AM' | 'DAY_SPLIT_PM' | 'DAY_REASON' | 'DAY_REASON_TEXT' | 'DAY_SPLIT_REASON' | 'DAY_SPLIT_REASON_TEXT',
-//   weekDates: string[],          // ['2026-04-14', ..., '2026-04-18']
-//   days: Record<string, {        // keyed by ISO date
-//     status: 'IN'|'OUT', reason: string|null, notes: string,
-//     splitDay: boolean, amStatus?: 'IN'|'OUT', pmStatus?: 'IN'|'OUT', outReason?: string|null
-//   }>,
-//   currentDay: string|null,
-//   chatId: number,
-//   messageId: number,
-// }
 const weekSessions = new Map()
-// Deletion confirmation: telegramIds awaiting "YES" to confirm profile deletion
 const pendingDeletion = new Set()
 
 // ── Keyboard builders ─────────────────────────────────────────────────────────
@@ -39,7 +45,6 @@ function statusKeyboard() {
   }
 }
 
-// prefix = 'reason' for full OUT, 'splitreason' for split-day OUT half
 function reasonKeyboard(prefix = 'reason') {
   const p = prefix
   return {
@@ -120,27 +125,31 @@ function replyKeyboardMarkup() {
     keyboard: [
       [{ text: 'Report Today' }, { text: 'Plan This Week' }],
       [{ text: 'Plan Next Week' }, { text: 'My Status' }],
+      [{ text: 'View Roster' }],
     ],
     resize_keyboard: true,
     persistent: true,
   }
 }
 
+function contactKeyboard() {
+  return {
+    keyboard: [[{ text: '📱 Share my phone number', request_contact: true }]],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+  }
+}
+
 // ── Week grid utilities ───────────────────────────────────────────────────────
 
-// Returns array of 5 ISO date strings (Mon–Fri).
-// For "this week": only days >= today. For "next week": full Mon–Fri.
-// Edge case: if called on weekend for "this week", returns full next Mon–Fri (same as next week).
 function getWeekDates(isNextWeek, todayISO) {
   if (isNextWeek) {
     const mon = getNextWeekMonday(todayISO)
     return [0, 1, 2, 3, 4].map(i => addDays(mon, i))
   }
-  // this week
   const mon = getMondayOfWeek(todayISO)
   const allDays = [0, 1, 2, 3, 4].map(i => addDays(mon, i))
   const remaining = allDays.filter(d => d >= todayISO)
-  // if weekend, remaining is empty — fall back to next week
   if (remaining.length === 0) {
     const nextMon = getNextWeekMonday(todayISO)
     return [0, 1, 2, 3, 4].map(i => addDays(nextMon, i))
@@ -148,8 +157,6 @@ function getWeekDates(isNextWeek, todayISO) {
   return remaining
 }
 
-// Returns the button label for one day in the grid.
-// days is the weekSession.days Record.
 function dayLabel(isoDate, days) {
   const d = new Date(isoDate)
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -163,7 +170,6 @@ function dayLabel(isoDate, days) {
   return `${name} ${num} ❌${r}`
 }
 
-// Returns the text body for the grid message.
 function buildWeekGridText(weekSession) {
   const first = weekSession.weekDates[0]
   const last = weekSession.weekDates[weekSession.weekDates.length - 1]
@@ -174,10 +180,8 @@ function buildWeekGridText(weekSession) {
   return `${fmt(first)} – ${fmt(last)}\nTap a day to set your status.`
 }
 
-// Returns the inline_keyboard for the grid message.
 function buildWeekGridKeyboard(weekSession) {
   const { weekDates, days } = weekSession
-  // Row 1: days 0-2, Row 2: days 3-4
   const row1 = weekDates.slice(0, 3).map(d => ({
     text: dayLabel(d, days),
     callback_data: `week_day:${d}`,
@@ -187,12 +191,10 @@ function buildWeekGridKeyboard(weekSession) {
     callback_data: `week_day:${d}`,
   }))
 
-  // Count set days
   const setDates = weekDates.filter(d => days[d])
   const unsetDates = weekDates.filter(d => !days[d])
   const setCount = setDates.length
 
-  // Bottom action rows
   const actionRow = []
   if (setCount > 0) {
     actionRow.push({ text: `✅ Confirm (${setCount} set)`, callback_data: 'week_confirm' })
@@ -212,12 +214,9 @@ function buildWeekGridKeyboard(weekSession) {
   return { inline_keyboard: keyboard }
 }
 
-// Opens (or re-opens) the week grid for an officer.
-// Pre-fills days from existing DB records.
 async function openWeekGrid(telegramId, chatId, isNextWeek, todayISO) {
   const weekDates = getWeekDates(isNextWeek, todayISO)
 
-  // Load existing records for this week so we can pre-fill the grid
   const officer = await prisma.officer.findUnique({ where: { telegramId } })
   const existing = officer
     ? await prisma.availability.findMany({
@@ -228,7 +227,6 @@ async function openWeekGrid(telegramId, chatId, isNextWeek, todayISO) {
       })
     : []
 
-  // Build pre-filled days map from existing records
   const days = {}
   for (const rec of existing) {
     const iso = rec.date.toISOString().split('T')[0]
@@ -265,14 +263,12 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // Helper: refresh the grid message in-place
   const refreshGrid = async () => {
     const text = buildWeekGridText(session)
     const reply_markup = buildWeekGridKeyboard(session)
     await bot.editMessageText(text, { chat_id: chatId, message_id: messageId, reply_markup })
   }
 
-  // ── week_cancel ──────────────────────────────────────────────────────────────
   if (data === 'week_cancel') {
     weekSessions.delete(telegramId)
     await bot.editMessageText('Cancelled.', {
@@ -281,13 +277,11 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // ── week_all_in ──────────────────────────────────────────────────────────────
   if (data === 'week_all_in') {
     const unsetDates = session.weekDates.filter(d => !session.days[d])
     for (const d of unsetDates) {
       session.days[d] = { status: 'IN', reason: null, notes: '', splitDay: false }
     }
-    // Submit all set days
     const records = session.weekDates
       .filter(d => session.days[d])
       .map(d => ({ ...session.days[d], date: d }))
@@ -296,13 +290,11 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // ── week_confirm ─────────────────────────────────────────────────────────────
   if (data === 'week_confirm') {
     const records = session.weekDates
       .filter(d => session.days[d])
       .map(d => ({ ...session.days[d], date: d }))
     if (records.length === 0) {
-      // Nothing set — toast, keep grid open
       await bot.answerCallbackQuery(query.id, {
         text: "Select a day first.",
         show_alert: false,
@@ -314,7 +306,6 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // ── week_day:<date> — officer tapped a day in the grid ────────────────────────
   if (data.startsWith('week_day:')) {
     const date = data.slice(9)
     session.currentDay = date
@@ -339,7 +330,6 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // ── week_back — return to grid ────────────────────────────────────────────────
   if (data === 'week_back') {
     session.step = 'GRID'
     session.currentDay = null
@@ -347,7 +337,6 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // ── week_status:<IN|OUT|SPLIT> ────────────────────────────────────────────────
   if (data.startsWith('week_status:')) {
     const value = data.slice(12)
     const date = session.currentDay
@@ -405,7 +394,6 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // ── week_reason:<reason|OTHER> ────────────────────────────────────────────────
   if (data.startsWith('week_reason:')) {
     const value = data.slice(12)
     const date = session.currentDay
@@ -427,13 +415,11 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // ── week_am:<IN|OUT> ──────────────────────────────────────────────────────────
   if (data.startsWith('week_am:')) {
     const value = data.slice(8)
     const date = session.currentDay
     if (!date) return
 
-    // Store AM choice in session temporarily
     if (!session.days[date]) session.days[date] = { status: 'IN', reason: null, notes: '', splitDay: true }
     session.days[date].amStatus = value
     session.step = 'DAY_SPLIT_PM'
@@ -457,7 +443,6 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // ── week_pm:<IN|OUT> ──────────────────────────────────────────────────────────
   if (data.startsWith('week_pm:')) {
     const value = data.slice(8)
     const date = session.currentDay
@@ -496,7 +481,6 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
         },
       })
     } else {
-      // Both IN — finalize immediately
       day.status = 'IN'
       day.reason = null
       day.notes = 'AM in, PM in'
@@ -507,7 +491,6 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
     return
   }
 
-  // ── week_split_reason:<reason|OTHER> ─────────────────────────────────────────
   if (data.startsWith('week_split_reason:')) {
     const value = data.slice(18)
     const date = session.currentDay
@@ -524,7 +507,6 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
       const day = session.days[date] || { status: 'IN', reason: null, notes: '', splitDay: true, amStatus: 'IN', pmStatus: 'IN' }
       day.outReason = value
       day.reason = value
-      // Derive overall status and notes
       const amIn = day.amStatus === 'IN'
       const pmIn = day.pmStatus === 'IN'
       day.status = amIn ? 'IN' : 'OUT'
@@ -540,14 +522,25 @@ async function handleWeekCallback(query, officer, telegramId, chatId, messageId,
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatRecord(r) {
-  const reasonStr = r.reason ? ` — ${r.reason}` : ''
-  if (r.splitDay) {
-    const amHalf = r.notes?.startsWith('AM in') ? 'In' : `Out${reasonStr}`
-    const pmHalf = r.notes?.includes('PM in') ? 'In' : `Out${reasonStr}`
+  const reasonStr = r.reason ? ` (${r.reason})` : ''
+  if (r.notes && r.notes.includes('AM')) {
+    const amHalf = r.notes.startsWith('AM in') ? '✅ IN' : `❌ OUT${reasonStr}`
+    const pmHalf = r.notes.includes('PM in') ? '✅ IN' : `❌ OUT${reasonStr}`
     return `${amHalf} / ${pmHalf}`
   }
-  if (r.status === 'IN') return 'In'
-  return `Out${reasonStr}`
+  if (r.status === 'IN') return '✅ IN'
+  return `❌ OUT${reasonStr}`
+}
+
+function formatRecordPlain(r) {
+  const reasonStr = r.reason ? ` (${r.reason})` : ''
+  if (r.notes && r.notes.includes('AM')) {
+    const amHalf = r.notes.startsWith('AM in') ? 'IN' : `OUT${reasonStr}`
+    const pmHalf = r.notes.includes('PM in') ? 'IN' : `OUT${reasonStr}`
+    return `${amHalf} / ${pmHalf}`
+  }
+  if (r.status === 'IN') return 'IN'
+  return `OUT${reasonStr}`
 }
 
 function buildConfirmText(name, records) {
@@ -557,7 +550,7 @@ function buildConfirmText(name, records) {
   }
 
   if (records.length > 1) {
-    const lines = records.map(r => `${fmtDate(r.date)}  ${formatRecord(r)}`)
+    const lines = records.map(r => `${fmtDate(r.date)}  ${formatRecordPlain(r)}`)
     return `Done — ${records.length} days logged for ${name}.\n\n${lines.join('\n')}`
   }
 
@@ -622,6 +615,7 @@ async function storeAndConfirm(records, officer, chatId, rawMessage, messageId =
         reason: record.reason,
         rawMessage: rawMessage || '',
         notes: record.notes || null,
+        splitDay: !!record.splitDay,
       },
       create: {
         officerId: officer.id,
@@ -630,6 +624,7 @@ async function storeAndConfirm(records, officer, chatId, rawMessage, messageId =
         reason: record.reason,
         rawMessage: rawMessage || '',
         notes: record.notes || null,
+        splitDay: !!record.splitDay,
       },
     })
   }
@@ -648,24 +643,267 @@ async function storeAndConfirm(records, officer, chatId, rawMessage, messageId =
   }
 }
 
-// ── Registration helpers ───────────────────────────────────────────────────────
+// ── Phone verification ────────────────────────────────────────────────────────
 
-async function startRegistration(telegramId, chatId, fromUser) {
-  const telegramName = fromUser?.username || fromUser?.first_name || ''
-  pendingRegistration.set(telegramId, { step: 'rank', rank: null, telegramName })
-  await bot.sendMessage(chatId, "What's your rank?")
+async function handleContactVerification(msg) {
+  const telegramId = String(msg.from.id)
+  const chatId = msg.chat.id
+  const contact = msg.contact
+
+  // Anti-spoof: only accept the user's own contact
+  if (String(contact.user_id) !== telegramId) {
+    await bot.sendMessage(chatId, "Please share your own contact, not someone else's.")
+    return
+  }
+
+  const phone = normalizePhone(contact.phone_number)
+
+  const officer = await prisma.officer.findFirst({
+    where: { phoneNumber: phone },
+    include: { division: true },
+  })
+
+  if (!officer) {
+    const masked = phone.length >= 4 ? 'XXXX' + phone.slice(-4) : '****'
+    console.warn(`[VERIFY FAIL] phone=${masked} telegramId=${telegramId}`)
+    await bot.sendMessage(
+      chatId,
+      "Your phone number isn't in the system. Contact your admin to get added.",
+      { reply_markup: { remove_keyboard: true } }
+    )
+    return
+  }
+
+  if (officer.telegramId && officer.telegramId !== telegramId) {
+    await bot.sendMessage(chatId, "This number is already linked to another account. Contact your admin.")
+    return
+  }
+
+  await prisma.officer.update({
+    where: { id: officer.id },
+    data: {
+      telegramId,
+      telegramName: msg.from.username || msg.from.first_name || null,
+    },
+  })
+
+  const name = officer.name || msg.from.first_name || 'there'
+  const divInfo = officer.division?.name ? ` for ${officer.division.name}` : ''
+
+  if (officer.role === 'NSF') {
+    await bot.sendMessage(
+      chatId,
+      `Verified! Welcome, ${name}${divInfo}.\n\nYou're registered as NSF. Use /roster to view your division's roster.`,
+      { reply_markup: { remove_keyboard: true } }
+    )
+  } else {
+    await bot.sendMessage(
+      chatId,
+      `Verified! Welcome, ${name}${divInfo}.\n\nType in, mc, vl, wfh or use the buttons below.\nUse /roster to view the roster.`,
+      { reply_markup: replyKeyboardMarkup() }
+    )
+  }
+}
+
+// ── Roster display ────────────────────────────────────────────────────────────
+
+async function handleRosterCommand(msg) {
+  const telegramId = String(msg.from.id)
+  const chatId = msg.chat.id
+
+  const officer = await prisma.officer.findUnique({
+    where: { telegramId },
+    include: { division: true },
+  })
+  if (!officer) {
+    await bot.sendMessage(chatId, "Not registered. Send /start to get started.")
+    return
+  }
+
+  const todayISO = localISODate()
+  const today = new Date(todayISO)
+
+  // Only extract args when called from a /roster command (not from 'View Roster' button)
+  const args = (msg.text || '').startsWith('/roster')
+    ? (msg.text || '').replace(/^\/roster\s*/i, '').trim()
+    : ''
+
+  let targetDivisionName
+  if (officer.role === 'NSF') {
+    targetDivisionName = officer.division?.name || null
+  } else if (args) {
+    targetDivisionName = args
+  } else {
+    targetDivisionName = officer.division?.name || null
+  }
+
+  const where = {}
+  if (targetDivisionName) {
+    const div = await prisma.division.findFirst({
+      where: { name: { contains: targetDivisionName } },
+    })
+    if (!div) {
+      await bot.sendMessage(chatId,
+        `No division found matching "${targetDivisionName}".`,
+        { reply_markup: replyKeyboardMarkup() }
+      )
+      return
+    }
+    where.divisionId = div.id
+  }
+
+  const officers = await prisma.officer.findMany({
+    where,
+    include: {
+      availability: { where: { date: today }, take: 1 },
+      branch: true,
+      division: true,
+    },
+    orderBy: [{ name: 'asc' }],
+  })
+
+  if (officers.length === 0) {
+    await bot.sendMessage(chatId, targetDivisionName
+      ? `No officers found for ${targetDivisionName}.`
+      : 'No officers found.',
+      { reply_markup: replyKeyboardMarkup() }
+    )
+    return
+  }
+
+  let countIn = 0, countOut = 0, countNotReported = 0
+  const reasonCounts = {}
+  for (const o of officers) {
+    const avail = o.availability[0]
+    if (!avail) { countNotReported++; continue }
+    if (avail.status === 'IN') { countIn++; continue }
+    countOut++
+    if (avail.reason) reasonCounts[avail.reason] = (reasonCounts[avail.reason] || 0) + 1
+  }
+
+  const reasonSummary = Object.entries(reasonCounts).map(([r, c]) => `${r}×${c}`).join(', ')
+  const outStr = countOut > 0 && reasonSummary ? `OUT: ${countOut} (${reasonSummary})` : `OUT: ${countOut}`
+
+  const d = new Date(todayISO)
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const dateStr = `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })} ${d.getFullYear()} (${dayNames[d.getDay()]})`
+  const divLabel = targetDivisionName || 'All Divisions'
+
+  let text = `📋 Roster — ${dateStr}\n${divLabel}\nIN: ${countIn} | ${outStr} | Not reported: ${countNotReported}\n`
+
+  const branches = {}
+  for (const o of officers) {
+    const br = o.branch?.name || 'Unassigned'
+    if (!branches[br]) branches[br] = []
+    branches[br].push(o)
+  }
+
+  for (const [branchName, branchOfficers] of Object.entries(branches)) {
+    text += `\n— ${branchName} —\n`
+    for (const o of branchOfficers) {
+      const displayName = o.name || o.telegramName || 'Unknown'
+      const avail = o.availability[0]
+      if (!avail) {
+        text += `⚠️ ${displayName} — Not reported\n`
+      } else if (avail.status === 'IN') {
+        if (avail.notes && avail.notes.includes('AM')) {
+          text += `↔️ ${displayName} — ${formatRecordPlain(avail)}\n`
+        } else {
+          text += `✅ ${displayName} — IN\n`
+        }
+      } else {
+        const reasonStr = avail.reason ? ` (${avail.reason})` : ''
+        text += `❌ ${displayName} — OUT${reasonStr}\n`
+      }
+    }
+  }
+
+  await bot.sendMessage(chatId, text, { reply_markup: replyKeyboardMarkup() })
+}
+
+async function handleWeekplanCommand(msg) {
+  const telegramId = String(msg.from.id)
+  const chatId = msg.chat.id
+
+  const officer = await prisma.officer.findUnique({ where: { telegramId } })
+  if (!officer) {
+    await bot.sendMessage(chatId, "Not registered. Send /start to get started.")
+    return
+  }
+
+  if (officer.role === 'NSF') {
+    await bot.sendMessage(chatId, "NSFs can't log attendance. Use /roster to view the roster.")
+    return
+  }
+
+  const todayISO = localISODate()
+  const mon = getMondayOfWeek(todayISO)
+  const weekDates = [0, 1, 2, 3, 4].map(i => addDays(mon, i))
+
+  const records = await prisma.availability.findMany({
+    where: {
+      officerId: officer.id,
+      date: { in: weekDates.map(d => new Date(d)) },
+    },
+  })
+
+  const recordMap = {}
+  for (const rec of records) {
+    const iso = rec.date.toISOString().split('T')[0]
+    recordMap[iso] = rec
+  }
+
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+  const fmtDate = iso => {
+    const d = new Date(iso)
+    return `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
+  }
+
+  const first = weekDates[0]
+  const last = weekDates[4]
+  let text = `📅 Your week — ${fmtDate(first)} – ${fmtDate(last)}\n\n`
+
+  weekDates.forEach((date, i) => {
+    const rec = recordMap[date]
+    if (!rec) {
+      text += `${dayNames[i]}: ⚠️ Not reported\n`
+    } else {
+      text += `${dayNames[i]}: ${formatRecord(rec)}\n`
+    }
+  })
+
+  await bot.sendMessage(chatId, text, { reply_markup: replyKeyboardMarkup() })
+}
+
+// ── Security: private-chat guard ──────────────────────────────────────────────
+
+function isPrivateChat(msg) {
+  return msg.chat.type === 'private'
 }
 
 // ── Message handler ───────────────────────────────────────────────────────────
 
 async function handleMessage(msg) {
+  // Private chat only
+  if (!isPrivateChat(msg)) {
+    await bot.sendMessage(msg.chat.id, 'This bot only works in private chats.')
+    return
+  }
+
   const telegramId = String(msg.from.id)
   const chatId = msg.chat.id
-  const rawMessage = msg.text?.trim()
+
+  // Handle contact sharing (phone verification)
+  if (msg.contact) {
+    await handleContactVerification(msg)
+    return
+  }
+
+  const rawMessage = sanitizeInput(msg.text || '')
   if (!rawMessage) return
 
-  const todayISO = new Date().toISOString().split('T')[0]
-  const tomorrowISO = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const todayISO = localISODate()
+  const tomorrowISO = localISODate(new Date(Date.now() + 86400000))
 
   // 0. Pending deletion confirmation
   if (pendingDeletion.has(telegramId)) {
@@ -686,66 +924,33 @@ async function handleMessage(msg) {
     return
   }
 
-  // 0.5. Multi-day free-text (e.g. "mon in, tue mc, wed vl" or "14 apr in, 15 apr mc")
+  // 0.5. Multi-day free-text
   const multiRecords = multiDayMatch(rawMessage, todayISO)
   if (multiRecords && multiRecords.length >= 2) {
     const officer = await prisma.officer.findUnique({ where: { telegramId } })
-    if (!officer) { await startRegistration(telegramId, chatId, msg.from); return }
+    if (!officer) { await promptVerification(chatId); return }
+    if (officer.role === 'NSF') { await bot.sendMessage(chatId, "NSFs can't log attendance. Use /roster to view the roster."); return }
     const expanded = expandRecords(multiRecords, todayISO)
     await storeAndConfirm(expanded, officer, chatId, rawMessage, null)
     return
   }
 
-  // 1. Registration flow
-  if (pendingRegistration.has(telegramId)) {
-    const reg = pendingRegistration.get(telegramId)
-    if (reg.step === 'rank') {
-      const rank = rawMessage.trim()
-      if (rank.length > 20) {
-        await bot.sendMessage(chatId, "That's too long for a rank. Try again.")
-        return
-      }
-      reg.rank = rank
-      reg.step = 'name'
-      await bot.sendMessage(chatId, "Your name?")
-      return
-    }
-    if (reg.step === 'name') {
-      const name = rawMessage.trim()
-      if (name.length > 60) {
-        await bot.sendMessage(chatId, "That seems too long for a name. Try again.")
-        return
-      }
-      const existing = await prisma.officer.findUnique({ where: { telegramId } })
-      if (existing) {
-        pendingRegistration.delete(telegramId)
-        await bot.sendMessage(chatId, `You're already registered, ${existing.name || existing.telegramName || 'there'}.`, { reply_markup: replyKeyboardMarkup() })
-
-        return
-      }
-      pendingRegistration.delete(telegramId)
-      await prisma.officer.create({
-        data: {
-          telegramId,
-          telegramName: reg.telegramName,
-          name: `${reg.rank} ${name}`,
-        },
-      })
-      await bot.sendMessage(
-        chatId,
-        `Registered as ${reg.rank} ${name}.\n\nType in, mc, vl, wfh or use the buttons below.`,
-        { reply_markup: replyKeyboardMarkup() }
-      )
-      return
-    }
-  }
-
-  // 1b. Reply Keyboard button taps (persistent bottom keyboard)
-  // These come as plain text messages — detect and handle them before anything else
+  // 1. Reply Keyboard button taps
   if (rawMessage === 'Report Today') {
-    const officerForReport = await prisma.officer.findUnique({ where: { telegramId } })
-    if (!officerForReport) { await startRegistration(telegramId, chatId, msg.from); return }
-    const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, chatId, messageId: null }
+    const officer = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officer) { await promptVerification(chatId); return }
+    if (officer.role === 'NSF') { await bot.sendMessage(chatId, "NSFs can't log attendance. Use /roster to view the roster."); return }
+    // Invalidate any existing session keyboard so old buttons can't be tapped
+    const existingSession = sessions.get(telegramId)
+    if (existingSession?.messageId) {
+      try {
+        await bot.editMessageReplyMarkup(
+          { inline_keyboard: [] },
+          { chat_id: existingSession.chatId, message_id: existingSession.messageId }
+        )
+      } catch (_) { /* already gone or already edited — ignore */ }
+    }
+    const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, reportToday: true, chatId, messageId: null }
     sessions.set(telegramId, session)
     const sent = await bot.sendMessage(chatId, "Today's status?", {
       reply_markup: statusKeyboard(),
@@ -755,28 +960,29 @@ async function handleMessage(msg) {
   }
 
   if (rawMessage === 'Plan This Week') {
-    const officerForWeek = await prisma.officer.findUnique({ where: { telegramId } })
-    if (!officerForWeek) { await startRegistration(telegramId, chatId, msg.from); return }
+    const officer = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officer) { await promptVerification(chatId); return }
+    if (officer.role === 'NSF') { await bot.sendMessage(chatId, "NSFs can't log attendance. Use /roster to view the roster."); return }
     await openWeekGrid(telegramId, chatId, false, todayISO)
     return
   }
 
   if (rawMessage === 'Plan Next Week') {
-    const officerForWeek = await prisma.officer.findUnique({ where: { telegramId } })
-    if (!officerForWeek) { await startRegistration(telegramId, chatId, msg.from); return }
+    const officer = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officer) { await promptVerification(chatId); return }
+    if (officer.role === 'NSF') { await bot.sendMessage(chatId, "NSFs can't log attendance. Use /roster to view the roster."); return }
     await openWeekGrid(telegramId, chatId, true, todayISO)
     return
   }
 
   if (rawMessage === 'My Status') {
-    const officerForStatus = await prisma.officer.findUnique({ where: { telegramId } })
-    if (!officerForStatus) { await startRegistration(telegramId, chatId, msg.from); return }
-    const todayISO = new Date().toISOString().split('T')[0]
+    const officer = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officer) { await promptVerification(chatId); return }
     const today = new Date(todayISO)
     const avail = await prisma.availability.findFirst({
-      where: { officerId: officerForStatus.id, date: today },
+      where: { officerId: officer.id, date: today },
     })
-    const name = officerForStatus.name || officerForStatus.telegramName || 'Officer'
+    const name = officer.name || officer.telegramName || 'Officer'
     const todayStr = (() => {
       const d = new Date(todayISO)
       return `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
@@ -793,6 +999,11 @@ async function handleMessage(msg) {
         },
       })
     }
+    return
+  }
+
+  if (rawMessage === 'View Roster') {
+    await handleRosterCommand(msg)
     return
   }
 
@@ -841,14 +1052,19 @@ async function handleMessage(msg) {
       return
     }
 
-    // Any other text while week session is active — clear it and fall through
     weekSessions.delete(telegramId)
   }
 
   // 2. Check if officer exists in DB
   const officer = await prisma.officer.findUnique({ where: { telegramId } })
   if (!officer) {
-    await startRegistration(telegramId, chatId, msg.from)
+    await promptVerification(chatId)
+    return
+  }
+
+  // NSF guard
+  if (officer.role === 'NSF') {
+    await bot.sendMessage(chatId, "NSFs can't log attendance. Use /roster to view the roster.", { reply_markup: replyKeyboardMarkup() })
     return
   }
 
@@ -858,29 +1074,32 @@ async function handleMessage(msg) {
 
     if (session.step === 'REASON_TEXT') {
       session.reason = rawMessage
-      session.step = 'DATE'
-      const sent = await bot.sendMessage(chatId, `Reason noted. Which date?`, {
-        reply_markup: dateKeyboard(todayISO, tomorrowISO),
-      })
-      session.messageId = sent.message_id
+      if (session.reportToday) {
+        const records = buildRecordsFromDateValue('today', session, todayISO, tomorrowISO)
+        sessions.delete(telegramId)
+        await storeAndConfirm(records, officer, chatId, rawMessage, null)
+      } else {
+        session.step = 'DATE'
+        const sent = await bot.sendMessage(chatId, `Reason noted. Which date?`, {
+          reply_markup: dateKeyboard(todayISO, tomorrowISO),
+        })
+        session.messageId = sent.message_id
+      }
       return
     }
 
     if (session.step === 'SPLIT_REASON_TEXT') {
       session.outReason = rawMessage
-      session.step = 'DATE'
-      const sent = await bot.sendMessage(chatId, `Reason noted. Which date?`, {
-        reply_markup: dateKeyboard(todayISO, tomorrowISO, true),
-      })
-      session.messageId = sent.message_id
+      const records = buildRecordsFromDateValue('today', session, todayISO, tomorrowISO)
+      sessions.delete(telegramId)
+      await storeAndConfirm(records, officer, chatId, rawMessage, null)
       return
     }
 
-    // Any other text while session is active — clear it and fall through
     sessions.delete(telegramId)
   }
 
-  // 4. Keyword shortcut — fast path, no keyboard needed
+  // 4. Keyword shortcut
   const matched = keywordMatch(rawMessage, todayISO, tomorrowISO)
   if (matched) {
     await storeAndConfirm(matched, officer, chatId, rawMessage)
@@ -896,23 +1115,35 @@ async function handleMessage(msg) {
   session.messageId = sent.message_id
 }
 
+// ── Prompt verification ───────────────────────────────────────────────────────
+
+async function promptVerification(chatId) {
+  await bot.sendMessage(
+    chatId,
+    "Welcome to Yappd! To verify your identity, please share your phone number.",
+    { reply_markup: contactKeyboard() }
+  )
+}
+
 // ── Callback query handler ────────────────────────────────────────────────────
 
 async function handleCallbackQuery(query) {
   await bot.answerCallbackQuery(query.id)
+
+  // Private chat only
+  if (query.message.chat.type !== 'private') return
 
   const telegramId = String(query.from.id)
   const chatId = query.message.chat.id
   const messageId = query.message.message_id
   const data = query.data
 
-  const todayISO = new Date().toISOString().split('T')[0]
-  const tomorrowISO = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const todayISO = localISODate()
+  const tomorrowISO = localISODate(new Date(Date.now() + 86400000))
 
   // Cancel
   if (data === 'cancel') {
     sessions.delete(telegramId)
-    pendingRegistration.delete(telegramId)
     weekSessions.delete(telegramId)
     pendingDeletion.delete(telegramId)
     await bot.editMessageText('Cancelled.', {
@@ -928,12 +1159,18 @@ async function handleCallbackQuery(query) {
     const officerForEdit = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officerForEdit) {
       await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId })
-      await startRegistration(telegramId, chatId, query.from)
+      await promptVerification(chatId)
+      return
+    }
+    if (officerForEdit.role === 'NSF') {
+      await bot.editMessageText("NSFs can't log attendance.", {
+        chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] },
+      })
       return
     }
     sessions.delete(telegramId)
     await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId })
-    const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, chatId, messageId: null }
+    const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, reportToday: true, chatId, messageId: null }
     sessions.set(telegramId, session)
     const sent = await bot.sendMessage(chatId, "Change today's status?", {
       reply_markup: statusKeyboard(),
@@ -942,7 +1179,7 @@ async function handleCallbackQuery(query) {
     return
   }
 
-  // ── Week planner callbacks ──
+  // Week planner callbacks
   if (data.startsWith('week_')) {
     const officerForWeek = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officerForWeek) {
@@ -955,7 +1192,7 @@ async function handleCallbackQuery(query) {
     return
   }
 
-  // ── Availability callbacks — need an officer and session ──
+  // Availability callbacks
   const officer = await prisma.officer.findUnique({ where: { telegramId } })
   if (!officer) {
     await bot.editMessageText("Not registered. Send /start to get started.", {
@@ -965,7 +1202,7 @@ async function handleCallbackQuery(query) {
   }
 
   const session = sessions.get(telegramId)
-  if (!session) {
+  if (!session || (session.messageId && messageId !== session.messageId)) {
     await bot.editMessageText("This keyboard has expired.", {
       chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] },
     })
@@ -979,11 +1216,17 @@ async function handleCallbackQuery(query) {
   if (type === 'status') {
     if (value === 'IN') {
       session.status = 'IN'
-      session.step = 'DATE'
-      await bot.editMessageText("IN — which date?", {
-        chat_id: chatId, message_id: messageId,
-        reply_markup: dateKeyboard(todayISO, tomorrowISO),
-      })
+      if (session.reportToday) {
+        const records = buildRecordsFromDateValue('today', session, todayISO, tomorrowISO)
+        sessions.delete(telegramId)
+        await storeAndConfirm(records, officer, chatId, null, messageId)
+      } else {
+        session.step = 'DATE'
+        await bot.editMessageText("IN — which date?", {
+          chat_id: chatId, message_id: messageId,
+          reply_markup: dateKeyboard(todayISO, tomorrowISO),
+        })
+      }
     } else if (value === 'OUT') {
       session.status = 'OUT'
       session.step = 'REASON'
@@ -1011,43 +1254,30 @@ async function handleCallbackQuery(query) {
       })
     } else {
       session.reason = value
-      session.step = 'DATE'
-      await bot.editMessageText(`OUT (${value}) — which date?`, {
-        chat_id: chatId, message_id: messageId,
-        reply_markup: dateKeyboard(todayISO, tomorrowISO),
-      })
+      if (session.reportToday) {
+        const records = buildRecordsFromDateValue('today', session, todayISO, tomorrowISO)
+        sessions.delete(telegramId)
+        await storeAndConfirm(records, officer, chatId, null, messageId)
+      } else {
+        session.step = 'DATE'
+        await bot.editMessageText(`OUT (${value}) — which date?`, {
+          chat_id: chatId, message_id: messageId,
+          reply_markup: dateKeyboard(todayISO, tomorrowISO),
+        })
+      }
     }
     return
   }
 
   if (type === 'am') {
     session.amStatus = value
-    session.step = 'PM_STATUS'
-    const amLabel = value === 'IN' ? 'In (Morning)' : 'Out (Morning)'
-    await bot.editMessageText(`${amLabel}. Afternoon status?`, {
+    session.pmStatus = value === 'IN' ? 'OUT' : 'IN'
+    session.step = 'SPLIT_REASON'
+    const amLabel = value === 'IN' ? 'Morning IN, afternoon OUT.' : 'Morning OUT, afternoon IN.'
+    await bot.editMessageText(`${amLabel} Reason for the out portion?`, {
       chat_id: chatId, message_id: messageId,
-      reply_markup: pmStatusKeyboard(),
+      reply_markup: reasonKeyboard('splitreason'),
     })
-    return
-  }
-
-  if (type === 'pm') {
-    session.pmStatus = value
-    const needReason = session.amStatus === 'OUT' || value === 'OUT'
-    if (needReason) {
-      session.step = 'SPLIT_REASON'
-      await bot.editMessageText("Reason for the out portion?", {
-        chat_id: chatId, message_id: messageId,
-        reply_markup: reasonKeyboard('splitreason'),
-      })
-    } else {
-      // Both IN
-      session.step = 'DATE'
-      await bot.editMessageText("Both IN — which date?", {
-        chat_id: chatId, message_id: messageId,
-        reply_markup: dateKeyboard(todayISO, tomorrowISO, true),
-      })
-    }
     return
   }
 
@@ -1060,11 +1290,9 @@ async function handleCallbackQuery(query) {
       })
     } else {
       session.outReason = value
-      session.step = 'DATE'
-      await bot.editMessageText(`OUT (${value}) — which date?`, {
-        chat_id: chatId, message_id: messageId,
-        reply_markup: dateKeyboard(todayISO, tomorrowISO, true),
-      })
+      const records = buildRecordsFromDateValue('today', session, todayISO, tomorrowISO)
+      sessions.delete(telegramId)
+      await storeAndConfirm(records, officer, chatId, null, messageId)
     }
     return
   }
@@ -1080,27 +1308,50 @@ async function handleCallbackQuery(query) {
 // ── Command handler ───────────────────────────────────────────────────────────
 
 async function handleCommand(msg) {
+  // Private chat only
+  if (!isPrivateChat(msg)) {
+    await bot.sendMessage(msg.chat.id, 'This bot only works in private chats.')
+    return
+  }
+
   const text = msg.text || ''
   const telegramId = String(msg.from.id)
 
   if (text.startsWith('/start')) {
-    const existing = await prisma.officer.findUnique({ where: { telegramId } })
+    const existing = await prisma.officer.findUnique({
+      where: { telegramId },
+      include: { division: true },
+    })
     if (existing) {
       const name = existing.name || existing.telegramName || 'there'
+      const roleInfo = existing.role === 'NSF' ? ' (NSF)' : ''
+      const divInfo = existing.division?.name ? ` — ${existing.division.name}` : ''
       await bot.sendMessage(
         msg.chat.id,
-        `Registered as ${name}.\n\nType in, mc, vl, wfh or use the buttons below.`,
-        { reply_markup: replyKeyboardMarkup() }
+        `Registered as ${name}${roleInfo}${divInfo}.\n\n` +
+        (existing.role === 'NSF'
+          ? 'Commands:\n/roster — View your division\'s roster\n/weekplan — View this week\'s plan\n/deregister — Remove your profile'
+          : 'Type in, mc, vl, wfh or use the buttons below.\n\nCommands:\n/roster — View the roster\n/weekplan — View your week plan\n/status — Check today\'s status\n/report — Report today\'s attendance\n/deregister — Remove your profile'),
+        { reply_markup: existing.role === 'NSF' ? undefined : replyKeyboardMarkup() }
       )
     } else {
-      pendingRegistration.delete(telegramId)
-      await startRegistration(telegramId, msg.chat.id, msg.from)
+      await promptVerification(msg.chat.id)
     }
     return
   }
 
+  if (text.startsWith('/roster')) {
+    await handleRosterCommand(msg)
+    return
+  }
+
+  if (text.startsWith('/weekplan')) {
+    await handleWeekplanCommand(msg)
+    return
+  }
+
   if (text.startsWith('/status')) {
-    const todayISO = new Date().toISOString().split('T')[0]
+    const todayISO = localISODate()
     const today = new Date(todayISO)
 
     const officer = await prisma.officer.findUnique({
@@ -1126,22 +1377,28 @@ async function handleCommand(msg) {
         reply_markup: replyKeyboardMarkup(),
       })
     }
+    return
   }
 
   if (text.startsWith('/report')) {
-    const todayISO = new Date().toISOString().split('T')[0]
-    const tomorrowISO = new Date(Date.now() + 86400000).toISOString().split('T')[0]
     const officer = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officer) {
       await bot.sendMessage(msg.chat.id, "Not registered. Send /start to get started.")
       return
     }
+    if (officer.role === 'NSF') {
+      await bot.sendMessage(msg.chat.id, "NSFs can't log attendance. Use /roster to view the roster.")
+      return
+    }
+    const todayISO = localISODate()
+    const tomorrowISO = localISODate(new Date(Date.now() + 86400000))
     const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, pmStatus: null, outReason: null, chatId: msg.chat.id, messageId: null }
     sessions.set(telegramId, session)
     const sent = await bot.sendMessage(msg.chat.id, "Today's status?", {
       reply_markup: statusKeyboard(),
     })
     session.messageId = sent.message_id
+    return
   }
 
   if (text.startsWith('/deregister')) {
@@ -1163,6 +1420,7 @@ async function handleCommand(msg) {
 async function nudgeOfficers(officers) {
   for (const officer of officers) {
     if (!officer.telegramId) continue
+    if (officer.role === 'NSF') continue
     const name = officer.name || officer.telegramName || 'there'
     try {
       await bot.sendMessage(
