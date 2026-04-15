@@ -1,21 +1,97 @@
 # Bot Enhancements Design — Sub-project A
 
 **Date:** 2026-04-15
-**Goal:** Add `/roster` to BotFather command menu, add "View Roster" to the reply keyboard, and enable officers to edit all profile fields via a `/editprofile` command in the bot.
+**Goal:** Add `/roster` to BotFather command menu, add "View Roster" to the reply keyboard, introduce `Division` and `Branch` as proper DB tables, and enable officers to edit all profile fields via a `/editprofile` command in the bot.
 
 ---
 
 ## Scope
 
-Three changes to `server/src/bot/telegram.js` only — no DB migrations, no frontend changes:
+Changes span the DB schema, a seed script, and the bot:
 
-1. Register bot commands with Telegram via `bot.setMyCommands()` at startup
-2. Add "View Roster" button to the persistent reply keyboard
-3. Implement `/editprofile` command with a sequential field-edit flow
+1. DB migration — `Division` and `Branch` models; `Officer` gets `divisionId` and `branchId` FKs replacing the old `division String?` and `branch String?` columns
+2. Seed script — populate 5 known SCDF divisions
+3. Register bot commands with Telegram via `bot.setMyCommands()` at startup
+4. Add "View Roster" button to the persistent reply keyboard
+5. Implement `/editprofile` command with a sequential field-edit flow
+
+No frontend changes in this sub-project.
 
 ---
 
-## 1. BotFather Command Menu
+## 1. Schema Changes
+
+### New models
+
+```prisma
+model Division {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  officers Officer[]
+}
+
+model Branch {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  officers Officer[]
+}
+```
+
+### Officer model changes
+
+Remove `division String?` and `branch String?`. Add:
+
+```prisma
+model Officer {
+  // ... existing fields ...
+  divisionId String?
+  division   Division? @relation(fields: [divisionId], references: [id])
+  branchId   String?
+  branch     Branch?   @relation(fields: [branchId], references: [id])
+}
+```
+
+Both relations are optional — an officer without a division or branch is valid.
+
+### Migration
+
+```bash
+cd server && npx prisma migrate dev --name add_division_branch_tables
+```
+
+### Seed script — `server/prisma/seed-divisions.js`
+
+```js
+const { PrismaClient } = require('@prisma/client')
+const prisma = new PrismaClient()
+
+const DIVISIONS = [
+  '1st Division',
+  '2nd Division',
+  '3rd Division',
+  '4th Division',
+  'Marine Division',
+]
+
+async function main() {
+  for (const name of DIVISIONS) {
+    await prisma.division.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    })
+  }
+  console.log('Divisions seeded.')
+}
+
+main().finally(() => prisma.$disconnect())
+```
+
+Run once after migration: `node prisma/seed-divisions.js`
+
+---
+
+## 2. BotFather Command Menu
 
 Call `bot.setMyCommands()` once at server startup (after the bot is initialised). Registers the following commands so they appear in Telegram's `/` command picker:
 
@@ -45,7 +121,7 @@ Call `bot.setMyCommands()` once at server startup (after the bot is initialised)
 
 ---
 
-## 2. Reply Keyboard Update
+## 3. Reply Keyboard Update
 
 ### Current layout (2×2)
 ```
@@ -87,11 +163,11 @@ if (rawMessage === 'View Roster') {
 }
 ```
 
-`handleRosterCommand` already exists and is fully implemented — it fetches today's roster from the DB, groups officers by branch, and sends a formatted text message.
+`handleRosterCommand` already exists and is fully implemented — it fetches today's roster from the DB, groups officers by branch, and sends a formatted text message. It must be updated to query via the `branch` relation (`include: { branch: true, division: true }`) and use `officer.branch.name` / `officer.division.name` instead of the old string fields.
 
 ---
 
-## 3. `/editprofile` Command — Self-Edit Flow
+## 4. `/editprofile` Command — Self-Edit Flow
 
 ### Session Map
 
@@ -100,16 +176,16 @@ Add a new module-level Map alongside `sessions` and `weekSessions`:
 ```js
 const editSessions = new Map()
 // keyed by telegramId (string)
-// value: { field: 'name'|'rank'|'dept'|'phone'|null, messageId: number|null, chatId: number }
+// value: { field: 'name'|'rank'|'division'|'branch'|'phone'|null, messageId: number|null, chatId: number }
 ```
 
 ### Entry Points
 
 - `/editprofile` command → `handleCommand` dispatches to `handleEditProfileCommand(msg)`
-- `handleMessage` catches text input when `editSessions.has(telegramId)` and the session's `field` is set to `'name'`, `'rank'`, or `'dept'` (typed fields)
-- `handleMessage` catches contact messages when `editSessions.get(telegramId)?.field === 'phone'`
+- `handleMessage` catches text input when `editSessions.has(telegramId)` and `editSession.field` is `'name'`, `'rank'`, or `'branch'` (the one typed field)
+- `handleMessage` catches contact messages when `editSession.field === 'phone'`
 
-### Profile Card Keyboard
+### Profile Card Helpers
 
 ```js
 function editProfileKeyboard() {
@@ -124,24 +200,63 @@ function editProfileKeyboard() {
         { text: '✏️ Branch',   callback_data: 'edit_branch' },
       ],
       [{ text: '✏️ Phone', callback_data: 'edit_phone' }],
-      [{ text: '✅ Done', callback_data: 'edit_done' }],
+      [{ text: '✅ Done',  callback_data: 'edit_done'  }],
+    ],
+  }
+}
+
+function buildProfileText(officer) {
+  const name     = officer.name              || '(not set)'
+  const rank     = officer.rank              || '(not set)'
+  const division = officer.division?.name    || '(not set)'
+  const branch   = officer.branch?.name      || '(not set)'
+  const phone    = officer.phoneNumber       || '(not set)'
+  return (
+    `👤 Your profile:\n\n` +
+    `Name: ${name}\nRank: ${rank}\nDivision: ${division}\nBranch: ${branch}\nPhone: ${phone}\n\n` +
+    `What would you like to update?`
+  )
+}
+```
+
+`officer` must be fetched with `include: { division: true, branch: true }` wherever it is used in this flow.
+
+### Division Selection Keyboard
+
+Division is always chosen from the 5 seeded records — never typed free-form.
+
+```js
+async function divisionKeyboard() {
+  const divisions = await prisma.division.findMany({ orderBy: { name: 'asc' } })
+  return {
+    inline_keyboard: [
+      ...divisions.map(d => [{ text: d.name, callback_data: `edit_div:${d.id}` }]),
+      [{ text: '❌ Cancel', callback_data: 'edit_cancel' }],
     ],
   }
 }
 ```
 
-### Profile Card Text
+Callback prefix: `edit_div:<divisionId>`
+
+### Branch Selection Keyboard
+
+Branch shows all existing branches plus an "Other" option that lets the officer type a new one.
 
 ```js
-function buildProfileText(officer) {
-  const name     = officer.name         || '(not set)'
-  const rank     = officer.rank         || '(not set)'
-  const division = officer.division     || '(not set)'
-  const branch   = officer.branch       || '(not set)'
-  const phone    = officer.phoneNumber  || '(not set)'
-  return `👤 Your profile:\n\nName: ${name}\nRank: ${rank}\nDivision: ${division}\nBranch: ${branch}\nPhone: ${phone}\n\nWhat would you like to update?`
+async function branchKeyboard() {
+  const branches = await prisma.branch.findMany({ orderBy: { name: 'asc' } })
+  const rows = branches.map(b => [{ text: b.name, callback_data: `edit_br:${b.id}` }])
+  rows.push([{ text: '✏️ Other (type it)', callback_data: 'edit_branch_other' }])
+  rows.push([{ text: '❌ Cancel',           callback_data: 'edit_cancel' }])
+  return { inline_keyboard: rows }
 }
 ```
+
+Callback prefixes: `edit_br:<branchId>`, `edit_branch_other`
+
+When officer selects an existing branch → update Officer directly.
+When officer taps "Other" → `editSession.field = 'branch'` → bot prompts to type it → `prisma.branch.upsert({ where: { name }, create: { name }, update: {} })` → link to officer.
 
 ### Flow Walkthrough
 
@@ -149,67 +264,107 @@ function buildProfileText(officer) {
 Officer sends /editprofile
   ↓
 handleEditProfileCommand:
-  - fetch officer (if not found → promptVerification)
+  - fetch officer with include: { division: true, branch: true }
+    (if not found → promptVerification)
   - clear any existing editSession
   - send profile card with editProfileKeyboard()
   - store editSession: { field: null, messageId: sent.message_id, chatId }
 
+── Editing name / rank ──────────────────────────────────────────────
+
 Officer taps [✏️ Name] (callback_data: 'edit_name')
-  ↓
-handleCallbackQuery:
   - verify editSession.messageId === messageId (else → "keyboard expired")
-  - set editSession.field = 'name'
+  - editSession.field = 'name'
   - editMessageText: "What's your new name? Type it below."
     reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'edit_cancel' }]] }
 
 Officer types "CPT John Tan"
-  ↓
-handleMessage (editSessions check at top of typed-input section):
-  - validate: non-empty, ≤ 60 chars, strip whitespace
-  - prisma.officer.update({ name: 'CPT John Tan' })
-  - re-fetch officer
+  - validate: non-empty after trim, ≤ 60 chars
+  - prisma.officer.update({ name: trimmed })
+  - re-fetch officer (with includes)
   - editSession.field = null
-  - editMessageText(editSession.messageId): buildProfileText(updated) + editProfileKeyboard()
-    → "Updated! Here's your profile:"  (profile card loops back)
-  (same flow applies for edit_rank → officer.rank, edit_division → officer.division, edit_branch → officer.branch)
+  - editMessageText(editSession.messageId): "Updated! Here's your profile:\n\n" + buildProfileText(officer)
+    reply_markup: editProfileKeyboard()
+  (same pattern for edit_rank → officer.rank, max 20 chars)
+
+── Editing division ─────────────────────────────────────────────────
+
+Officer taps [✏️ Division] (callback_data: 'edit_division')
+  - editSession.field = 'division'
+  - editMessageText: "Choose your division:"
+    reply_markup: await divisionKeyboard()
+
+Officer taps a division button (callback_data: 'edit_div:<id>')
+  - prisma.officer.update({ divisionId: id })
+  - re-fetch officer (with includes)
+  - editSession.field = null
+  - editMessageText: "Updated! Here's your profile:\n\n" + buildProfileText(officer)
+    reply_markup: editProfileKeyboard()
+
+── Editing branch ───────────────────────────────────────────────────
+
+Officer taps [✏️ Branch] (callback_data: 'edit_branch')
+  - editSession.field = 'branch'
+  - editMessageText: "Choose your branch or type a new one:"
+    reply_markup: await branchKeyboard()
+
+Officer taps an existing branch (callback_data: 'edit_br:<id>')
+  - prisma.officer.update({ branchId: id })
+  - re-fetch officer (with includes)
+  - editSession.field = null
+  - editMessageText: "Updated! Here's your profile:\n\n" + buildProfileText(officer)
+    reply_markup: editProfileKeyboard()
+
+Officer taps [✏️ Other (type it)] (callback_data: 'edit_branch_other')
+  - editSession.field = 'branch'   (already set — keep it)
+  - editMessageText: "Type your branch name:"
+    reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'edit_cancel' }]] }
+
+Officer types "G3 OPS"
+  - validate: non-empty after trim, ≤ 60 chars
+  - prisma.branch.upsert({ where: { name: 'G3 OPS' }, create: { name: 'G3 OPS' }, update: {} })
+  - prisma.officer.update({ branchId: branch.id })
+  - re-fetch officer (with includes)
+  - editSession.field = null
+  - editMessageText: "Updated! Here's your profile:\n\n" + buildProfileText(officer)
+    reply_markup: editProfileKeyboard()
+
+── Editing phone ────────────────────────────────────────────────────
 
 Officer taps [✏️ Phone] (callback_data: 'edit_phone')
-  ↓
-handleCallbackQuery:
-  - set editSession.field = 'phone'
+  - editSession.field = 'phone'
   - editMessageText: "Share your new phone number to update it."
     reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'edit_cancel' }]] }
-  - send SEPARATE message with contact keyboard (Telegram requires ReplyKeyboardMarkup in its own message):
-      bot.sendMessage(chatId, "Tap below to share your number:", { reply_markup: contactKeyboard() })
+  - bot.sendMessage(chatId, "Tap below:", { reply_markup: contactKeyboard() })
+    (separate message — Telegram requires ReplyKeyboardMarkup in its own message)
 
 Officer shares contact
-  ↓
-handleMessage (contact message branch):
-  - check editSession exists and editSession.field === 'phone' (else → normal registration flow)
-  - normalise phone (normalizePhone from officers.controller)
-  - check not taken by another officer:
-      prisma.officer.findFirst({ where: { phoneNumber: phone, NOT: { id: officer.id } } })
-    → if taken: "That number is linked to another account. No changes made."
+  - check editSession.field === 'phone' (else → normal registration flow)
+  - normalise via normalizePhone()
+  - prisma.officer.findFirst({ where: { phoneNumber: phone, NOT: { id: officer.id } } })
+    → if taken: send error message "That number is already linked to another account."
   - prisma.officer.update({ phoneNumber: phone })
-  - re-fetch officer
-  - send new message with remove_keyboard: true to dismiss the contact keyboard
+  - re-fetch officer (with includes)
+  - bot.sendMessage(chatId, "✅ Phone updated.", { reply_markup: { remove_keyboard: true } })
   - editSession.field = null
-  - editMessageText(editSession.messageId): buildProfileText(updated) + editProfileKeyboard()
+  - editMessageText(editSession.messageId): "Updated! Here's your profile:\n\n" + buildProfileText(officer)
+    reply_markup: editProfileKeyboard()
+
+── Done / Cancel ────────────────────────────────────────────────────
 
 Officer taps [✅ Done] (callback_data: 'edit_done')
-  ↓
-handleCallbackQuery:
   - editSessions.delete(telegramId)
-  - editMessageText: "Profile saved. All good! 👍"
+  - editMessageText: "Profile saved. All done! 👍"
     reply_markup: { inline_keyboard: [] }
 
-Officer taps [❌ Cancel] mid-edit (callback_data: 'edit_cancel')
-  ↓
-handleCallbackQuery:
+Officer taps [❌ Cancel] (callback_data: 'edit_cancel')
+  - prevField = editSession.field
   - editSession.field = null
-  - re-fetch officer
-  - if previous field was 'phone': send a message with remove_keyboard: true to dismiss the contact keyboard
-  - editMessageText: buildProfileText(officer) + editProfileKeyboard()
+  - re-fetch officer (with includes)
+  - if prevField === 'phone':
+      bot.sendMessage(chatId, "Cancelled.", { reply_markup: { remove_keyboard: true } })
+  - editMessageText: buildProfileText(officer)
+    reply_markup: editProfileKeyboard()
     → returns to profile card without saving
 ```
 
@@ -219,55 +374,89 @@ handleCallbackQuery:
 |---|---|---|
 | Name | `officer.name` | Non-empty after trim, ≤ 60 chars |
 | Rank | `officer.rank` | Non-empty after trim, ≤ 20 chars |
-| Division | `officer.division` | Non-empty after trim, ≤ 60 chars |
-| Branch | `officer.branch` | Non-empty after trim, ≤ 60 chars |
+| Division | `officer.divisionId` | Must be a valid Division id (selected from keyboard — no free text) |
+| Branch (new) | `officer.branchId` | Created via upsert — non-empty after trim, ≤ 60 chars |
+| Branch (existing) | `officer.branchId` | Must be a valid Branch id (selected from keyboard) |
 | Phone | `officer.phoneNumber` | normalizePhone() succeeds, not already taken by a different officer |
 
-On validation failure: send a new message with the error and re-prompt the same field.
+On typed validation failure: send a new message with the error and re-prompt the same field (don't touch the profile card message).
 
 ### Callback Prefixes Added
 
-`edit_name`, `edit_rank`, `edit_division`, `edit_branch`, `edit_phone`, `edit_done`, `edit_cancel`
+`edit_name`, `edit_rank`, `edit_division`, `edit_div:<id>`, `edit_branch`, `edit_br:<id>`, `edit_branch_other`, `edit_phone`, `edit_done`, `edit_cancel`
 
 ---
 
 ## Session Isolation
 
-- Opening `/editprofile` clears any existing `editSession` for that telegramId
+- Opening `/editprofile` clears any existing `editSession` for that `telegramId`
 - Opening `/editprofile` does NOT clear `sessions` or `weekSessions` — those flows are independent
 - `editSessions` is included in `setupMocks()` in `helpers.js` so tests get fresh state per test
+
+---
+
+## Roster Command Updates
+
+`handleRosterCommand` must be updated to use the new relations:
+
+```js
+// Before (old string fields)
+const officers = await prisma.officer.findMany({
+  where,
+  include: { availability: { where: { date: today }, take: 1 } },
+  orderBy: [{ branch: 'asc' }, { name: 'asc' }],
+})
+// officer.branch  (string)
+// officer.division (string)
+
+// After (relation fields)
+const officers = await prisma.officer.findMany({
+  where,
+  include: {
+    availability: { where: { date: today }, take: 1 },
+    branch: true,
+    division: true,
+  },
+  orderBy: [{ name: 'asc' }],
+})
+// officer.branch.name  (string | undefined)
+// officer.division.name (string | undefined)
+```
+
+The `where` clause used to filter by `division` (string) must change to `divisionId`. The `targetDivision` lookup fetches the Division record by name first, then filters by `divisionId`.
 
 ---
 
 ## Error Handling
 
 - Officer not registered → `promptVerification(chatId)`
-- NSF officer → allowed to edit profile (NSFs can still update their name/rank/dept/phone)
-- `editSession.messageId` mismatch → "This keyboard has expired." (same guard as other flows)
-- DB errors → propagate via `express-async-errors` pattern (caught by global error handler)
+- NSF officer → allowed to edit all profile fields
+- `editSession.messageId` mismatch → "This keyboard has expired."
+- DB errors → propagate (caught by global error handler)
 
 ---
 
 ## Files Changed
 
+- **New:** `server/prisma/seed-divisions.js`
+- **Migration:** `server/prisma/migrations/<timestamp>_add_division_branch_tables/`
+- **Modify:** `server/prisma/schema.prisma` — add `Division`, `Branch` models; update `Officer`
 - **Modify:** `server/src/bot/telegram.js`
   - Add `editSessions` Map
   - Update `replyKeyboardMarkup()`
   - Add `setMyCommands()` call at startup
   - Add `'View Roster'` text handler in `handleMessage`
-  - Add `editProfileKeyboard()` and `buildProfileText()` helpers
+  - Add `editProfileKeyboard()`, `buildProfileText()`, `divisionKeyboard()`, `branchKeyboard()` helpers
   - Add `handleEditProfileCommand()` function
   - Add `edit_*` callback handlers in `handleCallbackQuery`
-  - Add edit-session text-input handling in `handleMessage`
-  - Add edit-session contact handling in `handleMessage`
-
-No DB migrations needed — all fields (`name`, `rank`, `department`, `phone`) already exist on the `Officer` model.
+  - Add edit-session text-input and contact handling in `handleMessage`
+  - Update `handleRosterCommand()` to use relation fields
 
 ---
 
 ## Out of Scope
 
-- Changing `telegramId` or `isNSF` — not editable by the officer
-- Admin editing officer profiles from the dashboard — existing functionality, untouched
-- Frontend changes
+- Changing `telegramId` or `role` (NSF/OFFICER) — not editable by the officer
+- Admin dashboard CRUD for divisions or branches — divisions are seeded; branches grow via officer input
 - Any changes to `digest.js`, `parser.js`, or routes
+- Frontend changes
