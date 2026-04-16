@@ -1,7 +1,17 @@
 const prisma = require('../config/prisma')
+const {
+  DEFAULT_NOTIFICATION_LIMIT,
+  MAX_NOTIFICATION_LIMIT,
+  OFFICER_RELATION_INCLUDE,
+  serializeNotificationsPayload,
+  serializeSuccessResponse,
+} = require('../../../shared/contracts/api')
 
 const getNotifications = async (req, res) => {
-  const take = Math.min(Math.max(Number(req.query.limit) || 12, 1), 50)
+  const take = Math.min(
+    Math.max(Number(req.query.limit) || DEFAULT_NOTIFICATION_LIMIT, 1),
+    MAX_NOTIFICATION_LIMIT,
+  )
 
   const [items, unreadCount] = await Promise.all([
     prisma.notificationEvent.findMany({
@@ -10,10 +20,7 @@ const getNotifications = async (req, res) => {
       take,
       include: {
         officer: {
-          include: {
-            division: true,
-            branch: true,
-          },
+          include: OFFICER_RELATION_INCLUDE,
         },
       },
     }),
@@ -22,7 +29,7 @@ const getNotifications = async (req, res) => {
     }),
   ])
 
-  res.json({ items, unreadCount })
+  res.json(serializeNotificationsPayload({ items, unreadCount }))
 }
 
 const markAllNotificationsRead = async (req, res) => {
@@ -31,7 +38,7 @@ const markAllNotificationsRead = async (req, res) => {
     data: { readAt: new Date() },
   })
 
-  res.json({ ok: true })
+  res.json(serializeSuccessResponse())
 }
 
 module.exports = { getNotifications, markAllNotificationsRead }

@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt')
 const prisma = require('../config/prisma')
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/jwt')
+const { serializeAuthUser, serializeLogoutResponse } = require('../../../shared/contracts/api')
 
 const SALT_ROUNDS = 12
 
@@ -45,7 +46,7 @@ const register = async (req, res) => {
   res.cookie('access_token', accessToken, cookieOptions(ACCESS_TTL))
   res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TTL))
 
-  res.status(201).json({ id: user.id, email: user.email })
+  res.status(201).json(serializeAuthUser(user))
 }
 
 const login = async (req, res) => {
@@ -83,7 +84,7 @@ const login = async (req, res) => {
   res.cookie('access_token', accessToken, cookieOptions(ACCESS_TTL))
   res.cookie('refresh_token', refreshToken, cookieOptions(REFRESH_TTL))
 
-  res.status(200).json({ id: user.id, email: user.email })
+  res.status(200).json(serializeAuthUser(user))
 }
 
 const refresh = async (req, res) => {
@@ -108,28 +109,35 @@ const refresh = async (req, res) => {
 
   res.cookie('access_token', accessToken, cookieOptions(ACCESS_TTL))
 
-  res.status(200).json({ id: user.id, email: user.email })
+  res.status(200).json(serializeAuthUser(user))
 }
 
 const logout = async (req, res) => {
   const token = req.cookies.refresh_token
+  let decoded = null
 
   if (token) {
     try {
-      const decoded = verifyRefreshToken(token)
-      await prisma.user.update({
-        where: { id: decoded.sub },
-        data: { refreshToken: null },
-      })
+      decoded = verifyRefreshToken(token)
     } catch {
-      // Token invalid or expired — still clear cookies
+      decoded = null
     }
+  }
+
+  if (decoded) {
+    await prisma.user.updateMany({
+      where: {
+        id: decoded.sub,
+        refreshToken: token,
+      },
+      data: { refreshToken: null },
+    })
   }
 
   res.clearCookie('access_token')
   res.clearCookie('refresh_token')
 
-  res.status(200).json({ message: 'Logged out' })
+  res.status(200).json(serializeLogoutResponse())
 }
 
 module.exports = { register, login, refresh, logout }

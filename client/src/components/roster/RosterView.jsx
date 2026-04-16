@@ -1,24 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ArrowsClockwise } from '@phosphor-icons/react'
+import {
+  RosterErrorState,
+  RosterLoadingState,
+  RosterLocationBadge,
+  RosterShell,
+} from './RosterPrimitives'
+import { ROSTER_COLORS as BASE_COLORS, getRevealStyle } from './rosterTheme'
 
 const COLORS = {
-  shell: 'rgba(0, 0, 0, 0.03)',
-  surface: '#FFFFFF',
-  soft: '#F5F5F2',
-  line: 'rgba(0, 0, 0, 0.06)',
-  text: '#0F172A',
-  muted: 'rgba(0,0,0,0.45)',
+  ...BASE_COLORS,
   brand: '#4F46E5',
-  info: '#111111',
-  infoSoft: 'rgba(0,0,0,0.04)',
-  success: '#265D47',
-  successSoft: '#EDF7F0',
-  warning: '#9A6700',
-  warningSoft: '#FFF6DB',
-  danger: '#9B3B36',
-  dangerSoft: '#FCEDED',
 }
-
-// ── Date helpers ──────────────────────────────────────────────────────────────
 
 function localISODate(date = new Date()) {
   const y = date.getFullYear()
@@ -46,8 +39,6 @@ function fmtShort(isoDate) {
   return d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })
 }
 
-// ── Status helpers ────────────────────────────────────────────────────────────
-
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 const AFTERNOON_START_HOUR = 13
 
@@ -60,16 +51,32 @@ function formatOutLabel(reason) {
   return value ? `OUT · ${value}` : 'OUT'
 }
 
+function parseSplitHalf(notes, period) {
+  const modern = notes.match(new RegExp(`${period}\\s+(IN|OUT(?:\\(([^)]+)\\))?)`, 'i'))
+  if (modern) {
+    const token = modern[1].toUpperCase()
+    return {
+      in: token.startsWith('IN'),
+      reason: modern[2] || '',
+    }
+  }
+
+  const legacyIn = new RegExp(`${period.toLowerCase()} in`, 'i').test(notes)
+  const legacyOut = notes.match(new RegExp(`${period.toLowerCase()} out \\(([^)]+)\\)`, 'i'))
+  return {
+    in: legacyIn,
+    reason: legacyOut ? legacyOut[1] : '',
+  }
+}
+
 function parseSplitStatus(avail) {
   const notes = avail.notes || ''
-  const amIn = notes.startsWith('AM in')
-  const pmIn = notes.includes('PM in')
-  const reasonMatch = notes.match(/out \(([^)]+)\)/)
-  const reason = reasonMatch ? reasonMatch[1] : avail.reason || ''
+  const am = parseSplitHalf(notes, 'AM')
+  const pm = parseSplitHalf(notes, 'PM')
 
   return {
-    am: { type: amIn ? 'in' : 'out', label: amIn ? 'IN' : formatOutLabel(reason) },
-    pm: { type: pmIn ? 'in' : 'out', label: pmIn ? 'IN' : formatOutLabel(reason) },
+    am: { type: am.in ? 'in' : 'out', label: am.in ? 'IN' : formatOutLabel(am.reason || avail.reason) },
+    pm: { type: pm.in ? 'in' : 'out', label: pm.in ? 'IN' : formatOutLabel(pm.reason || avail.reason) },
   }
 }
 
@@ -110,41 +117,79 @@ const PILL = {
   none:  '',
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+function getStatusTone(type) {
+  if (type === 'in') {
+    return { '--pill-bg': COLORS.successSoft, '--pill-fg': COLORS.success, '--pill-ring': 'rgba(38,93,71,0.12)' }
+  }
 
-export default function RosterView() {
+  if (type === 'out') {
+    return { '--pill-bg': COLORS.dangerSoft, '--pill-fg': COLORS.danger, '--pill-ring': 'rgba(155,59,54,0.12)' }
+  }
+
+  return { '--pill-bg': '#F2EEFF', '--pill-fg': COLORS.brand, '--pill-ring': 'rgba(79,70,229,0.14)' }
+}
+
+function getRowRevealStyle(revealed, idx) {
+  return getRevealStyle(revealed, { distance: 8, delay: idx * 28, duration: 500 })
+}
+
+export default function RosterView({ refreshToken = 0 }) {
   const now = new Date()
   const todayISO = localISODate(now)
   const [weekStart, setWeekStart] = useState(() => getMondayOfWeek(todayISO))
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [revealed, setRevealed] = useState(false)
+  const isMountedRef = useRef(true)
 
   const week = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i))
   const isCurrentWeek = week.includes(todayISO)
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async ({ silent = false } = {}) => {
+    if (silent) {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+      setRevealed(false)
+    }
+
     try {
       const res = await fetch(`/weekly-roster?week=${weekStart}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
+      if (!isMountedRef.current) return
       setData(json)
       setError(null)
     } catch {
+      if (!isMountedRef.current) return
       setError('Could not load roster data.')
     } finally {
-      setLoading(false)
+      if (!isMountedRef.current) return
+      if (silent) setRefreshing(false)
+      else setLoading(false)
     }
   }, [weekStart])
 
   useEffect(() => {
-    setLoading(true)
-    setRevealed(false)
     fetchData()
-    const interval = setInterval(fetchData, 60_000)
+    const interval = setInterval(() => fetchData({ silent: true }), 60_000)
     return () => clearInterval(interval)
   }, [fetchData])
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (refreshToken > 0) {
+      fetchData({ silent: true })
+    }
+  }, [fetchData, refreshToken])
 
   useEffect(() => {
     if (!loading) {
@@ -153,7 +198,6 @@ export default function RosterView() {
     }
   }, [loading])
 
-  // Today's summary counts
   let inCount = 0, outCount = 0, unconfirmed = 0
   if (data && isCurrentWeek) {
     for (const o of data.officers) {
@@ -175,16 +219,7 @@ export default function RosterView() {
     <div>
       <div className="mb-6 md:mb-8">
         <div className="mb-5">
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.18em] font-semibold"
-            style={{ background: 'rgba(15,23,42,0.06)', color: 'rgba(15,23,42,0.68)' }}
-          >
-            <span
-              className="inline-block w-1.5 h-1.5 rounded-full"
-              style={{ background: isCurrentWeek ? COLORS.success : 'rgba(15,23,42,0.42)' }}
-            />
-            SCDF 2 Div HQ · Tampines
-          </span>
+          <RosterLocationBadge indicatorColor={isCurrentWeek ? COLORS.success : 'rgba(15,23,42,0.42)'} />
         </div>
 
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -230,6 +265,17 @@ export default function RosterView() {
             )}
 
             <div className="flex items-center gap-1">
+              <NavBtn
+                onClick={() => fetchData({ silent: true })}
+                small
+                disabled={refreshing}
+                title={refreshing ? 'Refreshing attendance' : 'Refresh attendance'}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <ArrowsClockwise size={12} className={refreshing ? 'animate-spin' : ''} />
+                  {refreshing ? 'Refreshing' : 'Refresh'}
+                </span>
+              </NavBtn>
               <NavBtn onClick={prevWeek}>←</NavBtn>
               {!isCurrentWeek && (
                 <NavBtn onClick={goToday} small>Today</NavBtn>
@@ -240,27 +286,13 @@ export default function RosterView() {
         </div>
       </div>
 
-      <div
-        className="rounded-[2rem] p-[6px]"
-        style={{
-          background: COLORS.shell,
-          boxShadow: `0 0 0 1px ${COLORS.line}`,
-        }}
+      <RosterShell
+        innerStyle={getRevealStyle(revealed)}
       >
-        <div
-          className="rounded-[calc(2rem-0.5rem)] overflow-hidden"
-          style={{
-            background: 'rgba(255,255,255,0.96)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)',
-            opacity: revealed ? 1 : 0,
-            transform: revealed ? 'translateY(0)' : 'translateY(12px)',
-            transition: 'opacity 600ms cubic-bezier(0.32,0.72,0,1), transform 600ms cubic-bezier(0.32,0.72,0,1)',
-          }}
-        >
           {loading ? (
-            <LoadingState />
+            <RosterLoadingState />
           ) : error ? (
-            <ErrorState message={error} />
+            <RosterErrorState message={error} />
           ) : total === 0 ? (
             <EmptyState />
           ) : (
@@ -270,12 +302,12 @@ export default function RosterView() {
                   <MobileOfficerCard
                     key={officer.id}
                     officer={officer}
-                      week={week}
-                      todayISO={todayISO}
-                      now={now}
-                      idx={idx}
-                      revealed={revealed}
-                    />
+                    week={week}
+                    todayISO={todayISO}
+                    now={now}
+                    idx={idx}
+                    revealed={revealed}
+                  />
                 ))}
               </div>
 
@@ -342,34 +374,76 @@ export default function RosterView() {
               </div>
             </>
           )}
-        </div>
-      </div>
+      </RosterShell>
 
       {!loading && !error && total > 0 && (
         <p
           className="mt-4 text-center text-[11px]"
           style={{ color: COLORS.muted }}
         >
-          {total} officer{total !== 1 ? 's' : ''} · refreshes every minute
+          {total} officer{total !== 1 ? 's' : ''} · refreshes every minute and on new status events
         </p>
       )}
     </div>
   )
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function NavBtn({ onClick, children, small }) {
+function NavBtn({ onClick, children, small, disabled = false, title }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
+      title={title}
       className={`${small ? 'px-3 py-1 rounded-full text-[11px] font-medium' : 'w-8 h-8 rounded-full flex items-center justify-center text-sm'} transition-colors duration-200`}
-      style={{ color: COLORS.muted }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = 'rgba(0,0,0,0.7)' }}
-      onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = COLORS.muted }}
+      style={{ color: COLORS.muted, opacity: disabled ? 0.5 : 1, cursor: disabled ? 'default' : 'pointer' }}
+      onMouseEnter={e => {
+        if (disabled) return
+        e.currentTarget.style.background = 'rgba(0,0,0,0.06)'
+        e.currentTarget.style.color = 'rgba(0,0,0,0.7)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = ''
+        e.currentTarget.style.color = COLORS.muted
+      }}
     >
       {children}
     </button>
+  )
+}
+
+function StatusPill({ type, label }) {
+  return (
+    <span
+      className={`inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${PILL[type]}`}
+      style={getStatusTone(type)}
+    >
+      {label}
+    </span>
+  )
+}
+
+function StatusDetail({ detail }) {
+  if (!detail) return null
+
+  return (
+    <div className="mt-1 text-[10px]" style={{ color: COLORS.muted }}>
+      {detail}
+    </div>
+  )
+}
+
+function OfficerStatus({ officer, date, todayISO, now }) {
+  const { type, label, detail } = parseStatus(officer.days[date], { date, todayISO, now })
+
+  if (type === 'none') {
+    return <span style={{ color: COLORS.muted, fontSize: '13px' }}>—</span>
+  }
+
+  return (
+    <div>
+      <StatusPill type={type} label={label} />
+      <StatusDetail detail={detail} />
+    </div>
   )
 }
 
@@ -377,12 +451,7 @@ function MobileOfficerCard({ officer, week, todayISO, now, idx, revealed }) {
   return (
     <article
       className="border-b px-4 py-4"
-      style={{
-        borderColor: COLORS.line,
-        opacity: revealed ? 1 : 0,
-        transform: revealed ? 'translateY(0)' : 'translateY(8px)',
-        transition: `opacity 500ms cubic-bezier(0.32,0.72,0,1) ${idx * 28}ms, transform 500ms cubic-bezier(0.32,0.72,0,1) ${idx * 28}ms`,
-      }}
+      style={{ borderColor: COLORS.line, ...getRowRevealStyle(revealed, idx) }}
     >
       <div className="text-base font-semibold tracking-[-0.03em]" style={{ color: COLORS.text }}>
         {officer.name}
@@ -390,7 +459,6 @@ function MobileOfficerCard({ officer, week, todayISO, now, idx, revealed }) {
       <div className="mt-4 grid grid-cols-1 gap-2">
         {week.map((date, i) => {
           const isToday = date === todayISO
-          const { type, label, detail } = parseStatus(officer.days[date], { date, todayISO, now })
 
           return (
             <div
@@ -406,29 +474,9 @@ function MobileOfficerCard({ officer, week, todayISO, now, idx, revealed }) {
                   {fmtShort(date)}
                 </div>
               </div>
-              {type === 'none' ? (
-                <span style={{ color: COLORS.muted, fontSize: '14px' }}>—</span>
-              ) : (
-                <div className="text-right">
-                  <span
-                    className={`inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap ${PILL[type]}`}
-                    style={
-                      type === 'in'
-                        ? { '--pill-bg': COLORS.successSoft, '--pill-fg': COLORS.success, '--pill-ring': 'rgba(38,93,71,0.12)' }
-                        : type === 'out'
-                          ? { '--pill-bg': COLORS.dangerSoft, '--pill-fg': COLORS.danger, '--pill-ring': 'rgba(155,59,54,0.12)' }
-                          : { '--pill-bg': '#F2EEFF', '--pill-fg': COLORS.brand, '--pill-ring': 'rgba(79,70,229,0.14)' }
-                    }
-                  >
-                    {label}
-                  </span>
-                  {detail && (
-                    <div className="mt-1 text-[10px]" style={{ color: COLORS.muted }}>
-                      {detail}
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="text-right">
+                <OfficerStatus officer={officer} date={date} todayISO={todayISO} now={now} />
+              </div>
             </div>
           )
         })}
@@ -440,12 +488,7 @@ function MobileOfficerCard({ officer, week, todayISO, now, idx, revealed }) {
 function OfficerRow({ officer, week, todayISO, now, idx, revealed }) {
   return (
     <tr
-      style={{
-        borderBottom: `1px solid ${COLORS.line}`,
-        opacity: revealed ? 1 : 0,
-        transform: revealed ? 'translateY(0)' : 'translateY(8px)',
-        transition: `opacity 500ms cubic-bezier(0.32,0.72,0,1) ${idx * 28}ms, transform 500ms cubic-bezier(0.32,0.72,0,1) ${idx * 28}ms`,
-      }}
+      style={{ borderBottom: `1px solid ${COLORS.line}`, ...getRowRevealStyle(revealed, idx) }}
     >
       <td
         className="py-3 pl-6 pr-4 text-sm font-medium whitespace-nowrap"
@@ -455,68 +498,17 @@ function OfficerRow({ officer, week, todayISO, now, idx, revealed }) {
       </td>
       {week.map(date => {
         const isToday = date === todayISO
-        const { type, label, detail } = parseStatus(officer.days[date], { date, todayISO, now })
         return (
           <td
             key={date}
             className="px-2 py-2.5 text-center"
             style={{ background: isToday ? 'rgba(31,105,255,0.03)' : 'transparent' }}
           >
-            {type === 'none' ? (
-              <span style={{ color: COLORS.muted, fontSize: '13px' }}>—</span>
-            ) : (
-              <div>
-                <span
-                  className={`inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap ${PILL[type]}`}
-                  style={
-                    type === 'in'
-                      ? { '--pill-bg': COLORS.successSoft, '--pill-fg': COLORS.success, '--pill-ring': 'rgba(10,130,23,0.16)' }
-                      : type === 'out'
-                        ? { '--pill-bg': COLORS.dangerSoft, '--pill-fg': COLORS.danger, '--pill-ring': 'rgba(215,38,15,0.16)' }
-                        : { '--pill-bg': '#F2EEFF', '--pill-fg': COLORS.brand, '--pill-ring': 'rgba(79,70,229,0.14)' }
-                  }
-                >
-                  {label}
-                </span>
-                {detail && (
-                  <div className="mt-1 text-[10px]" style={{ color: COLORS.muted }}>
-                    {detail}
-                  </div>
-                )}
-              </div>
-            )}
+            <OfficerStatus officer={officer} date={date} todayISO={todayISO} now={now} />
           </td>
         )
       })}
     </tr>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div className="flex items-center justify-center py-24">
-      <div className="flex gap-1.5">
-        {[0, 1, 2].map(i => (
-          <span
-            key={i}
-            className="block w-1.5 h-1.5 rounded-full"
-            style={{
-              background: 'rgba(89,37,220,0.28)',
-              animation: 'pulse 1.2s ease-in-out infinite',
-              animationDelay: `${i * 180}ms`,
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function ErrorState({ message }) {
-  return (
-    <div className="flex items-center justify-center py-24 text-sm" style={{ color: COLORS.muted }}>
-      {message}
-    </div>
   )
 }
 

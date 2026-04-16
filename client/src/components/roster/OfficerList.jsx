@@ -1,57 +1,95 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash } from '@phosphor-icons/react'
-import { fetchOfficers, addOfficer, deleteOfficer } from '../../api/officers.api'
+import { fetchOfficers, fetchOfficerFormOptions, addOfficer, deleteOfficer } from '../../api/officers.api'
+import {
+  RosterErrorState,
+  RosterLoadingState,
+  RosterLocationBadge,
+  RosterShell,
+} from './RosterPrimitives'
+import { ROSTER_COLORS as COLORS, getRevealStyle } from './rosterTheme'
+import { buildOfficerPayload, createEmptyOfficerForm } from '../../lib/officerForm'
 
-const COLORS = {
-  shell: 'rgba(0, 0, 0, 0.03)',
-  surface: '#FFFFFF',
-  soft: '#F5F5F2',
-  line: 'rgba(0, 0, 0, 0.06)',
-  text: '#0F172A',
-  muted: 'rgba(0,0,0,0.45)',
-  brand: '#111111',
-  info: '#111111',
-  infoSoft: 'rgba(0,0,0,0.04)',
-  danger: '#9B3B36',
-  dangerSoft: '#FCEDED',
-  lineStrong: 'rgba(0, 0, 0, 0.10)',
+function getRequestErrorMessage(error, fallbackMessage) {
+  return error?.response?.data?.error || fallbackMessage
 }
+
+function getOfficerDisplayName(officer) {
+  return officer.name || officer.telegramName || officer.phoneNumber
+}
+
+function updateField(setForm, field) {
+  return (event) => {
+    const { value } = event.target
+    setForm((current) => ({ ...current, [field]: value }))
+  }
+}
+
+const CONTROL_CLASS_NAME = 'w-full rounded-[1rem] border border-transparent px-4 py-3 text-sm transition-colors duration-200 focus:outline-none'
+const CONTROL_STYLE = { color: COLORS.text, background: COLORS.soft }
 
 export default function OfficerList() {
   const [officers, setOfficers] = useState([])
+  const [divisionOptions, setDivisionOptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [actionError, setActionError] = useState(null)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ rank: '', name: '', phoneNumber: '' })
+  const [form, setForm] = useState(createEmptyOfficerForm)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(null)
   const [revealed, setRevealed] = useState(false)
 
+  const resetForm = () => {
+    setForm(createEmptyOfficerForm())
+  }
+
+  const closeForm = () => {
+    setShowForm(false)
+    resetForm()
+    setFormError(null)
+  }
+
+  const toggleForm = () => {
+    setShowForm((current) => {
+      if (current) {
+        resetForm()
+      }
+
+      return !current
+    })
+    setFormError(null)
+  }
+
   useEffect(() => {
-    fetchOfficers()
-      .then(data => { setOfficers(data); setError(null) })
-      .catch(() => setError('Could not load officers.'))
-      .finally(() => {
+    const load = async () => {
+      try {
+        const [officerData, optionData] = await Promise.all([fetchOfficers(), fetchOfficerFormOptions()])
+        setOfficers(officerData)
+        setDivisionOptions(optionData.divisions || [])
+        setError(null)
+      } catch (err) {
+        setError(getRequestErrorMessage(err, 'Could not load officers.'))
+      } finally {
         setLoading(false)
         setTimeout(() => setRevealed(true), 40)
-      })
+      }
+    }
+
+    load()
   }, [])
 
   const handleAdd = async (e) => {
     e.preventDefault()
     if (!form.phoneNumber.trim()) { setFormError('Phone number is required.'); return }
-    setSaving(true); setFormError(null)
+    setSaving(true); setFormError(null); setActionError(null)
     try {
-      const created = await addOfficer({
-        rank: form.rank.trim() || undefined,
-        name: form.name.trim() || undefined,
-        phoneNumber: form.phoneNumber.trim(),
-      })
+      const created = await addOfficer(buildOfficerPayload(form))
       setOfficers(prev => [...prev, created].sort((a, b) => (a.name || '').localeCompare(b.name || '')))
-      setForm({ rank: '', name: '', phoneNumber: '' })
+      resetForm()
       setShowForm(false)
     } catch (err) {
-      setFormError(err.response?.data?.error || 'Could not add officer.')
+      setFormError(getRequestErrorMessage(err, 'Could not add officer.'))
     } finally {
       setSaving(false)
     }
@@ -61,20 +99,17 @@ export default function OfficerList() {
     try {
       await deleteOfficer(id)
       setOfficers(prev => prev.filter(o => o.id !== id))
-    } catch { /* silent */ }
+      setActionError(null)
+    } catch (err) {
+      setActionError(getRequestErrorMessage(err, 'Could not delete officer.'))
+    }
   }
 
   return (
     <div>
       <div className="mb-6 md:mb-8">
         <div className="mb-5">
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.18em] font-semibold"
-            style={{ background: 'rgba(15,23,42,0.06)', color: 'rgba(15,23,42,0.68)' }}
-          >
-            <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: COLORS.brand }} />
-            SCDF 2 Div HQ · Tampines
-          </span>
+          <RosterLocationBadge />
         </div>
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -93,7 +128,7 @@ export default function OfficerList() {
           </div>
 
           <button
-            onClick={() => { setShowForm(s => !s); setFormError(null) }}
+            onClick={toggleForm}
             className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-colors duration-200"
             style={{ background: COLORS.soft, color: COLORS.text }}
           >
@@ -104,79 +139,98 @@ export default function OfficerList() {
       </div>
 
       {showForm && (
-        <div
-        className="mb-6 rounded-[2rem] p-[6px]"
-          style={{ background: COLORS.shell, boxShadow: `0 0 0 1px ${COLORS.line}` }}
+        <RosterShell
+          outerClassName="mb-6"
+          innerClassName="px-5 py-6 md:px-8 md:py-7"
+          innerStyle={{ background: 'rgba(255,255,255,0.94)' }}
         >
-          <div className="rounded-[calc(2rem-0.5rem)] overflow-hidden px-5 py-6 md:px-8 md:py-7" style={{ background: 'rgba(255,255,255,0.94)' }}>
-            <form onSubmit={handleAdd} className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="Rank">
-                  <Input
-                    value={form.rank}
-                    onChange={e => setForm(f => ({ ...f, rank: e.target.value }))}
-                    placeholder="e.g. CPT"
-                  />
-                </Field>
-                <Field label="Name">
-                  <Input
-                    value={form.name}
-                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="e.g. Tan Wei Ming"
-                  />
-                </Field>
-              </div>
-              <Field label={<>Phone Number <span style={{ color: '#ef4444' }}>*</span></>}>
+          <form onSubmit={handleAdd} className="space-y-5">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field label="Rank">
                 <Input
-                  value={form.phoneNumber}
-                  onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))}
-                  placeholder="e.g. 91234567"
+                  value={form.rank}
+                  onChange={updateField(setForm, 'rank')}
+                  placeholder="e.g. CPT"
                 />
               </Field>
-              {formError && (
-                <p className="text-[12px]" style={{ color: COLORS.danger }}>{formError}</p>
-              )}
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center rounded-full px-5 py-3 text-sm font-medium text-white transition-opacity duration-200 disabled:opacity-40"
-                  style={{ background: COLORS.info }}
+              <Field label="Name">
+                <Input
+                  value={form.name}
+                  onChange={updateField(setForm, 'name')}
+                  placeholder="e.g. Tan Wei Ming"
+                />
+              </Field>
+            </div>
+            <Field label={<>Phone Number <span style={{ color: '#ef4444' }}>*</span></>}>
+              <Input
+                value={form.phoneNumber}
+                onChange={updateField(setForm, 'phoneNumber')}
+                placeholder="e.g. 91234567"
+              />
+            </Field>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field label="Division">
+                <Select
+                  value={form.division}
+                  onChange={updateField(setForm, 'division')}
                 >
-                  {saving ? 'Adding…' : 'Add officer'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowForm(false); setFormError(null) }}
-                  className="rounded-full px-5 py-3 text-sm font-medium transition-colors duration-200"
-                  style={{ background: COLORS.soft, color: COLORS.muted }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
+                  <option value="">Select division</option>
+                  {divisionOptions.map(division => (
+                    <option key={division.id} value={division.name}>
+                      {division.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Branch">
+                <Input
+                  value={form.branch}
+                  onChange={updateField(setForm, 'branch')}
+                  placeholder="e.g. OPS"
+                />
+              </Field>
+            </div>
+            {formError && (
+              <p className="text-[12px]" style={{ color: COLORS.danger }}>{formError}</p>
+            )}
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center rounded-full px-5 py-3 text-sm font-medium text-white transition-opacity duration-200 disabled:opacity-40"
+                style={{ background: COLORS.info }}
+              >
+                {saving ? 'Adding…' : 'Add officer'}
+              </button>
+              <button
+                type="button"
+                onClick={closeForm}
+                className="rounded-full px-5 py-3 text-sm font-medium transition-colors duration-200"
+                style={{ background: COLORS.soft, color: COLORS.muted }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </RosterShell>
+      )}
+
+      {actionError && (
+        <div
+          className="mb-4 rounded-2xl px-4 py-3 text-sm"
+          style={{ background: COLORS.dangerSoft, color: COLORS.danger, boxShadow: `0 0 0 1px ${COLORS.line}` }}
+        >
+          {actionError}
         </div>
       )}
 
-      <div
-        className="rounded-[2rem] p-[6px]"
-        style={{ background: COLORS.shell, boxShadow: `0 0 0 1px ${COLORS.line}` }}
+      <RosterShell
+        innerStyle={getRevealStyle(revealed)}
       >
-        <div
-          className="rounded-[calc(2rem-0.5rem)] overflow-hidden"
-          style={{
-            background: 'rgba(255,255,255,0.96)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)',
-            opacity: revealed ? 1 : 0,
-            transform: revealed ? 'translateY(0)' : 'translateY(12px)',
-            transition: 'opacity 600ms cubic-bezier(0.32,0.72,0,1), transform 600ms cubic-bezier(0.32,0.72,0,1)',
-          }}
-        >
           {loading ? (
-            <LoadingState />
+            <RosterLoadingState />
           ) : error ? (
-            <ErrorState message={error} />
+            <RosterErrorState message={error} />
           ) : officers.length === 0 ? (
             <EmptyState onAdd={() => setShowForm(true)} />
           ) : (
@@ -226,8 +280,7 @@ export default function OfficerList() {
             </div>
             </>
           )}
-        </div>
-      </div>
+      </RosterShell>
 
       {!loading && !error && officers.length > 0 && (
         <p className="mt-4 text-center text-[11px]" style={{ color: COLORS.muted }}>
@@ -240,16 +293,11 @@ export default function OfficerList() {
 
 function OfficerRow({ officer, idx, revealed, onDelete }) {
   const [hovered, setHovered] = useState(false)
-  const display = officer.name || officer.telegramName || officer.phoneNumber
+  const display = getOfficerDisplayName(officer)
 
   return (
     <tr
-      style={{
-        borderBottom: `1px solid ${COLORS.line}`,
-        opacity: revealed ? 1 : 0,
-        transform: revealed ? 'translateY(0)' : 'translateY(8px)',
-        transition: `opacity 500ms cubic-bezier(0.32,0.72,0,1) ${idx * 28}ms, transform 500ms cubic-bezier(0.32,0.72,0,1) ${idx * 28}ms`,
-      }}
+      style={{ borderBottom: `1px solid ${COLORS.line}`, ...getRevealStyle(revealed, { distance: 8, delay: idx * 28, duration: 500 }) }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -297,17 +345,12 @@ function OfficerRow({ officer, idx, revealed, onDelete }) {
 }
 
 function MobileOfficerCard({ officer, idx, revealed, onDelete }) {
-  const display = officer.name || officer.telegramName || officer.phoneNumber
+  const display = getOfficerDisplayName(officer)
 
   return (
     <article
       className="border-b px-4 py-4 last:border-b-0"
-      style={{
-        borderColor: COLORS.line,
-        opacity: revealed ? 1 : 0,
-        transform: revealed ? 'translateY(0)' : 'translateY(8px)',
-        transition: `opacity 500ms cubic-bezier(0.32,0.72,0,1) ${idx * 28}ms, transform 500ms cubic-bezier(0.32,0.72,0,1) ${idx * 28}ms`,
-      }}
+      style={{ borderColor: COLORS.line, ...getRevealStyle(revealed, { distance: 8, delay: idx * 28, duration: 500 }) }}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -366,35 +409,26 @@ function Input({ value, onChange, placeholder }) {
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      className="w-full px-4 py-3 rounded-[1rem] text-sm border border-transparent focus:outline-none transition-colors duration-200"
-      style={{ color: COLORS.text, background: COLORS.soft }}
+      className={CONTROL_CLASS_NAME}
+      style={CONTROL_STYLE}
       onFocus={e => { e.target.style.boxShadow = `0 0 0 1px ${COLORS.info}` }}
       onBlur={e => { e.target.style.boxShadow = 'none' }}
     />
   )
 }
 
-function LoadingState() {
+function Select({ value, onChange, children }) {
   return (
-    <div className="flex items-center justify-center py-24">
-      <div className="flex gap-1.5">
-        {[0, 1, 2].map(i => (
-          <span
-            key={i}
-            className="block w-1.5 h-1.5 rounded-full"
-            style={{ background: 'rgba(89,37,220,0.28)', animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i * 180}ms` }}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function ErrorState({ message }) {
-  return (
-    <div className="flex items-center justify-center py-24 text-sm" style={{ color: COLORS.muted }}>
-      {message}
-    </div>
+    <select
+      value={value}
+      onChange={onChange}
+      className={CONTROL_CLASS_NAME}
+      style={CONTROL_STYLE}
+      onFocus={e => { e.target.style.boxShadow = `0 0 0 1px ${COLORS.info}` }}
+      onBlur={e => { e.target.style.boxShadow = 'none' }}
+    >
+      {children}
+    </select>
   )
 }
 

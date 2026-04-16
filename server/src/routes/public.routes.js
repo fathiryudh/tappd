@@ -1,7 +1,14 @@
 const express = require('express')
 const router = express.Router()
 const prisma = require('../config/prisma')
-const { getMondayOfWeek, addDays } = require('../bot/parser')
+const { buildWorkWeek, getMondayOfWeek, localISODate, toUTCStartOfDay } = require('../utils/date')
+
+const STATUS_STYLE = {
+  unconfirmed: { text: 'Unconfirmed', color: '#ca8a04', rowBg: '#fefce8' },
+  split: { color: '#7c3aed', rowBg: '#faf5ff' },
+  in: { text: 'IN', color: '#16a34a', rowBg: '#f0fdf4' },
+  out: { color: '#dc2626', rowBg: '#fafafa' },
+}
 
 function esc(str) {
   return String(str)
@@ -12,9 +19,69 @@ function esc(str) {
     .replace(/'/g, '&#39;')
 }
 
+function parseSplitHalf(notes, period) {
+  const modern = notes.match(new RegExp(`${period}\\s+(IN|OUT(?:\\(([^)]+)\\))?)`, 'i'))
+  if (modern) {
+    const token = modern[1].toUpperCase()
+    return {
+      in: token.startsWith('IN'),
+      reason: modern[2] || '',
+    }
+  }
+
+  const legacyIn = new RegExp(`${period.toLowerCase()} in`, 'i').test(notes)
+  const legacyOut = notes.match(new RegExp(`${period.toLowerCase()} out \\(([^)]+)\\)`, 'i'))
+  return {
+    in: legacyIn,
+    reason: legacyOut ? legacyOut[1] : '',
+  }
+}
+
+function getOfficerDisplayName(officer) {
+  return [officer.rank, officer.name].filter(Boolean).join(' ')
+    || officer.telegramName
+    || `ID ${officer.telegramId}`
+}
+
+function formatOutStatus(reason) {
+  const normalizedReason = reason ? reason.toUpperCase() : ''
+  return normalizedReason ? `OUT(${normalizedReason})` : 'OUT'
+}
+
+function getAvailabilityPresentation(avail) {
+  if (!avail) {
+    return { key: 'unconfirmed', ...STATUS_STYLE.unconfirmed }
+  }
+
+  if (avail.notes && avail.notes.includes('AM')) {
+    const am = parseSplitHalf(avail.notes, 'AM')
+    const pm = parseSplitHalf(avail.notes, 'PM')
+
+    return {
+      key: 'split',
+      text: `${am.in ? 'IN' : formatOutStatus(am.reason)}/${pm.in ? 'IN' : formatOutStatus(pm.reason)}`,
+      ...STATUS_STYLE.split,
+    }
+  }
+
+  if (avail.status === 'IN') {
+    return { key: 'in', ...STATUS_STYLE.in }
+  }
+
+  return {
+    key: 'out',
+    text: formatOutStatus(avail.reason),
+    ...STATUS_STYLE.out,
+  }
+}
+
+function findAvailabilityByIsoDate(availability, isoDate) {
+  const targetTime = toUTCStartOfDay(isoDate).getTime()
+  return availability.find((entry) => new Date(entry.date).getTime() === targetTime) || null
+}
+
 router.get('/roster', async (req, res) => {
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
+  const today = toUTCStartOfDay(localISODate())
 
   const officers = await prisma.officer.findMany({
     include: {
@@ -42,47 +109,21 @@ router.get('/roster', async (req, res) => {
 
   const rows = officers.map((officer) => {
     const avail = officer.availability[0]
-    const displayName = esc([officer.rank, officer.name].filter(Boolean).join(' ') || officer.telegramName || `ID ${officer.telegramId}`)
+    const displayName = esc(getOfficerDisplayName(officer))
+    const status = getAvailabilityPresentation(avail)
 
-    let statusText
-    let statusColor
-    let rowBg
-
-    if (!avail) {
+    if (status.key === 'unconfirmed') {
       countUnconfirmed++
-      statusText = 'Unconfirmed'
-      statusColor = '#ca8a04'
-      rowBg = '#fefce8'
-    } else if (avail.notes && avail.notes.includes('AM')) {
-      // Split day — parse "AM out (MC), PM in" / "AM in, PM out (VL)" etc.
-      countOut++
-      const notes = avail.notes
-      const amIn = notes.startsWith('AM in')
-      const pmIn = notes.includes('PM in')
-      const reasonMatch = notes.match(/out \(([^)]+)\)/)
-      const reason = reasonMatch ? reasonMatch[1].toUpperCase() : ''
-      const amText = amIn ? 'IN' : (reason ? `OUT(${reason})` : 'OUT')
-      const pmText = pmIn ? 'IN' : (reason ? `OUT(${reason})` : 'OUT')
-      statusText = `${amText}/${pmText}`
-      statusColor = '#7c3aed'
-      rowBg = '#faf5ff'
-    } else if (avail.status === 'IN') {
+    } else if (status.key === 'in') {
       countIn++
-      statusText = 'IN'
-      statusColor = '#16a34a'
-      rowBg = '#f0fdf4'
     } else {
       countOut++
-      const reason = avail.reason ? avail.reason.toUpperCase() : ''
-      statusText = reason ? `OUT(${reason})` : 'OUT'
-      statusColor = '#dc2626'
-      rowBg = '#fafafa'
     }
 
     return `
-      <tr style="background:${rowBg}">
+      <tr style="background:${status.rowBg}">
         <td style="padding:10px 12px;font-weight:500">${displayName}</td>
-        <td style="padding:10px 12px;color:${statusColor};font-weight:600">${statusText}</td>
+        <td style="padding:10px 12px;color:${status.color};font-weight:600">${status.text}</td>
       </tr>`
   }).join('')
 
@@ -181,15 +222,10 @@ router.get('/roster', async (req, res) => {
 })
 
 router.get('/weekly-roster', async (req, res) => {
-  const weekParam = req.query.week || new Date().toISOString().split('T')[0]
+  const weekParam = req.query.week || localISODate()
   const monday = getMondayOfWeek(weekParam)
-  const week = Array.from({ length: 5 }, (_, i) => addDays(monday, i))
-
-  const weekDates = week.map(iso => {
-    const d = new Date(iso)
-    d.setUTCHours(0, 0, 0, 0)
-    return d
-  })
+  const week = buildWorkWeek(monday)
+  const weekDates = week.map(toUTCStartOfDay)
 
   const officers = await prisma.officer.findMany({
     include: {
@@ -199,16 +235,10 @@ router.get('/weekly-roster', async (req, res) => {
   })
 
   const officerData = officers.map(officer => {
-    const name = [officer.rank, officer.name].filter(Boolean).join(' ')
-      || officer.telegramName
-      || `ID ${officer.telegramId}`
+    const name = getOfficerDisplayName(officer)
     const days = {}
     for (const iso of week) {
-      const target = new Date(iso)
-      target.setUTCHours(0, 0, 0, 0)
-      const avail = officer.availability.find(
-        a => new Date(a.date).getTime() === target.getTime()
-      )
+      const avail = findAvailabilityByIsoDate(officer.availability, iso)
       days[iso] = avail
         ? { status: avail.status, reason: avail.reason || null, notes: avail.notes || '' }
         : null
@@ -219,7 +249,7 @@ router.get('/weekly-roster', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store')
   res.json({
     week,
-    today: new Date().toISOString().split('T')[0],
+    today: localISODate(),
     officers: officerData,
   })
 })

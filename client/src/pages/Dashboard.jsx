@@ -43,6 +43,7 @@ const toastLifetimeMs = 4200
 
 export default function Dashboard() {
   const [activeNav, setActiveNav] = useState('roster')
+  const [attendanceRefreshToken, setAttendanceRefreshToken] = useState(0)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notificationState, setNotificationState] = useState({ items: [], unreadCount: 0 })
   const [loadingNotifications, setLoadingNotifications] = useState(true)
@@ -94,6 +95,7 @@ export default function Dashboard() {
 
         if (initializedRef.current && unseenItems.length > 0) {
           pushLiveToasts(unseenItems)
+          setAttendanceRefreshToken(prev => prev + unseenItems.length)
         }
 
         initializedRef.current = true
@@ -291,7 +293,7 @@ export default function Dashboard() {
 
             <div className="flex-1 overflow-auto pt-4">
               {activeNav === 'roster' && <OfficerList />}
-              {activeNav === 'attendance' && <RosterView />}
+              {activeNav === 'attendance' && <RosterView refreshToken={attendanceRefreshToken} />}
             </div>
           </div>
         </MotionMain>

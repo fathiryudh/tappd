@@ -1,5 +1,5 @@
-// server/tests/bot/editprofile.test.js
 'use strict'
+
 const { setupMocks, makeCommandMsg, makeMsg, makeContactMsg, makeCallback, makeOfficer } = require('./helpers')
 
 describe('/editprofile — open profile card', () => {
@@ -11,7 +11,7 @@ describe('/editprofile — open profile card', () => {
     await handlers.handleCommand(makeCommandMsg('100', '/editprofile'))
     expect(bot.sendMessage).toHaveBeenCalledWith(
       100,
-      expect.stringContaining('Your profile'),
+      expect.stringContaining('Profile'),
       expect.objectContaining({
         reply_markup: expect.objectContaining({ inline_keyboard: expect.any(Array) }),
       })
@@ -72,7 +72,7 @@ describe('/editprofile — edit name', () => {
       expect.objectContaining({ data: expect.objectContaining({ name: 'ME2 Ali Hassan' }) })
     )
     expect(bot.editMessageText).toHaveBeenLastCalledWith(
-      expect.stringContaining('Your profile'),
+      expect.stringContaining('Profile'),
       expect.objectContaining({ message_id: msgId })
     )
   })
@@ -116,7 +116,7 @@ describe('/editprofile — edit division', () => {
     const labels = keyboard.flat().map(b => b.text)
     expect(labels).toContain('2nd Div')
     expect(labels).toContain('SCDF HQ')
-    expect(labels).toContain('✏️ Other (type it)')
+    expect(labels).toContain('Other')
   })
 
   test('selecting a known division updates officer', async () => {
@@ -156,7 +156,7 @@ describe('/editprofile — edit branch', () => {
     const keyboard = bot.editMessageText.mock.calls.at(-1)[1].reply_markup.inline_keyboard
     const labels = keyboard.flat().map(b => b.text)
     expect(labels).toContain('Ops')
-    expect(labels).toContain('✏️ Other (type it)')
+    expect(labels).toContain('Other')
   })
 
   test('selecting a known branch updates officer', async () => {
@@ -203,7 +203,7 @@ describe('/editprofile — edit phone', () => {
     await handlers.handleCommand(makeCommandMsg('100', '/editprofile'))
     const msgId = (await bot.sendMessage.mock.results[0].value).message_id
     await handlers.handleCallbackQuery(makeCallback('100', msgId, 'edit_phone'))
-    prisma.officer.findFirst.mockResolvedValue(null) // not taken
+    prisma.officer.findFirst.mockResolvedValue(null)
     await handlers.handleMessage(makeContactMsg('100', '+6598765432'))
     expect(prisma.officer.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ phoneNumber: '98765432' }) })
@@ -214,7 +214,6 @@ describe('/editprofile — edit phone', () => {
     await handlers.handleCommand(makeCommandMsg('100', '/editprofile'))
     const msgId = (await bot.sendMessage.mock.results[0].value).message_id
     await handlers.handleCallbackQuery(makeCallback('100', msgId, 'edit_phone'))
-    // Different officer has the number
     prisma.officer.findFirst.mockResolvedValue(makeOfficer({ id: 'off_other', telegramId: '999' }))
     await handlers.handleMessage(makeContactMsg('100', '+6598765432'))
     expect(prisma.officer.update).not.toHaveBeenCalled()
@@ -232,7 +231,7 @@ describe('/editprofile — done and cancel', () => {
     const msgId = (await bot.sendMessage.mock.results[0].value).message_id
     await handlers.handleCallbackQuery(makeCallback('100', msgId, 'edit_done'))
     expect(bot.editMessageText).toHaveBeenCalledWith(
-      expect.stringContaining('saved'),
+      expect.stringContaining('Saved'),
       expect.objectContaining({ reply_markup: { inline_keyboard: [] } })
     )
   })
@@ -244,7 +243,7 @@ describe('/editprofile — done and cancel', () => {
     await handlers.handleCallbackQuery(makeCallback('100', msgId, 'edit_cancel'))
     expect(prisma.officer.update).not.toHaveBeenCalled()
     expect(bot.editMessageText).toHaveBeenLastCalledWith(
-      expect.stringContaining('Your profile'),
+      expect.stringContaining('Profile'),
       expect.objectContaining({ message_id: msgId })
     )
   })
@@ -253,7 +252,6 @@ describe('/editprofile — done and cancel', () => {
     await handlers.handleCommand(makeCommandMsg('100', '/editprofile'))
     const msgId = (await bot.sendMessage.mock.results[0].value).message_id
     await handlers.handleCallbackQuery(makeCallback('100', msgId, 'edit_done'))
-    // tap old button on same message
     await handlers.handleCallbackQuery(makeCallback('100', msgId, 'edit_name'))
     expect(bot.editMessageText).toHaveBeenLastCalledWith(
       expect.stringContaining('expired'),

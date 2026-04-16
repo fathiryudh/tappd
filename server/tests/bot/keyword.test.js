@@ -1,10 +1,9 @@
 'use strict'
 
-const { makeMsg, makeGroupMsg, makeOfficer, setupMocks } = require('./helpers')
+const { makeMsg, makeGroupMsg, setupMocks } = require('./helpers')
 
 const USER_ID = 100
 
-// ── Helper: extract today's ISO date the same way telegram.js does ─────────────
 function localISODate(date = new Date()) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -18,8 +17,6 @@ describe('Keyword shortcut flows', () => {
   beforeEach(() => {
     ;({ bot, prisma, handlers: { handleMessage } } = setupMocks())
   })
-
-  // ── IN keywords ──────────────────────────────────────────────────────────────
 
   describe('IN keywords', () => {
     test('"in" → upserts status: IN for today', async () => {
@@ -66,9 +63,6 @@ describe('Keyword shortcut flows', () => {
       expect(storedDate.toISOString().startsWith(todayISO)).toBe(true)
     })
   })
-
-  // ── OUT keywords ─────────────────────────────────────────────────────────────
-
   describe('OUT keywords', () => {
     test('"mc" → upserts OUT/MC', async () => {
       await handleMessage(makeMsg(USER_ID, 'mc'))
@@ -149,23 +143,19 @@ describe('Keyword shortcut flows', () => {
 
     test('keyword sends a sendMessage confirmation (no messageId — uses sendMessage not editMessageText)', async () => {
       await handleMessage(makeMsg(USER_ID, 'mc'))
-
-      // storeAndConfirm with no 5th arg → bot.sendMessage for confirmation
       expect(bot.sendMessage).toHaveBeenCalled()
       expect(bot.editMessageText).not.toHaveBeenCalled()
     })
   })
 
-  // ── Unrecognised text ─────────────────────────────────────────────────────────
-
   describe('Unrecognised text', () => {
-    test('"hello" → no upsert, sendMessage with "Today\'s status?"', async () => {
+    test('"hello" → no upsert, sendMessage with "Choose today status."', async () => {
       await handleMessage(makeMsg(USER_ID, 'hello'))
 
       expect(prisma.availability.upsert).not.toHaveBeenCalled()
       expect(bot.sendMessage).toHaveBeenCalledTimes(1)
       const sentText = bot.sendMessage.mock.calls[0][1]
-      expect(sentText).toBe("Today's status?")
+      expect(sentText).toBe('Choose today status.')
     })
 
     test('"random text" → no upsert, falls through to status keyboard', async () => {
@@ -173,12 +163,9 @@ describe('Keyword shortcut flows', () => {
 
       expect(prisma.availability.upsert).not.toHaveBeenCalled()
       const sentText = bot.sendMessage.mock.calls[0][1]
-      expect(sentText).toBe("Today's status?")
+      expect(sentText).toBe('Choose today status.')
     })
   })
-
-  // ── Empty text ────────────────────────────────────────────────────────────────
-
   describe('Empty text', () => {
     test('empty string "" → no upsert, no sendMessage (early return)', async () => {
       await handleMessage(makeMsg(USER_ID, ''))
@@ -194,9 +181,6 @@ describe('Keyword shortcut flows', () => {
       expect(bot.sendMessage).not.toHaveBeenCalled()
     })
   })
-
-  // ── Unregistered user ─────────────────────────────────────────────────────────
-
   describe('Unregistered user', () => {
     test('"mc" from unregistered user → no upsert, sendMessage matches /verify|phone/i', async () => {
       prisma.officer.findUnique.mockResolvedValue(null)
@@ -220,9 +204,6 @@ describe('Keyword shortcut flows', () => {
       expect(sentText).toMatch(/verify|phone/i)
     })
   })
-
-  // ── NSF officer ───────────────────────────────────────────────────────────────
-
   describe('NSF officer', () => {
     beforeEach(() => {
       ;({ bot, prisma, handlers: { handleMessage } } = setupMocks({ role: 'NSF' }))
@@ -245,9 +226,6 @@ describe('Keyword shortcut flows', () => {
       expect(sentText).toMatch(/NSF/i)
     })
   })
-
-  // ── Group chat guard ──────────────────────────────────────────────────────────
-
   describe('Group chat guard', () => {
     test('"mc" in group chat → no upsert (private chat guard)', async () => {
       await handleMessage(makeGroupMsg(USER_ID, 'mc'))
@@ -263,8 +241,6 @@ describe('Keyword shortcut flows', () => {
 
     test('group chat message → bot.sendMessage called with private-only notice', async () => {
       await handleMessage(makeGroupMsg(USER_ID, 'mc'))
-
-      // The guard sends a "private chats only" message
       expect(bot.sendMessage).toHaveBeenCalledTimes(1)
       const sentText = bot.sendMessage.mock.calls[0][1]
       expect(sentText).toMatch(/private/i)

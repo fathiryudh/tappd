@@ -1,35 +1,6 @@
+const { addDays, getMondayOfWeek, getNextWeekMonday, getDayISO } = require('../utils/date')
+
 // Pure JS date utilities and keyword matching — no external API calls
-
-// --- Date helpers ---
-
-function addDays(isoDate, n) {
-  const d = new Date(isoDate)
-  d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
-}
-
-function getMondayOfWeek(isoDate) {
-  const d = new Date(isoDate)
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  return d.toISOString().split('T')[0]
-}
-
-function getNextWeekMonday(isoDate) {
-  return addDays(getMondayOfWeek(isoDate), 7)
-}
-
-// Next occurrence of targetDow (1=Mon…5=Fri), starting from tomorrow
-// (Today is handled explicitly with the "Today" button)
-function getDayISO(targetDow, todayISO) {
-  const d = new Date(todayISO)
-  d.setDate(d.getDate() + 1)
-  while (d.getDay() !== targetDow) {
-    d.setDate(d.getDate() + 1)
-  }
-  return d.toISOString().split('T')[0]
-}
 
 // --- Expansion ---
 

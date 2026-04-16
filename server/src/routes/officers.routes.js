@@ -3,6 +3,7 @@ const authenticate = require('../middleware/authenticate')
 const {
   getOfficers,
   addOfficer,
+  getOfficerFormOptions,
   updateOfficer,
   deleteOfficer,
   getRoster,
@@ -11,6 +12,7 @@ const {
 router.use(authenticate)
 
 router.get('/roster', getRoster)   // must be before /:id
+router.get('/form-options', getOfficerFormOptions)
 router.get('/', getOfficers)
 router.post('/', addOfficer)
 router.patch('/:id', updateOfficer)

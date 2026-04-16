@@ -33,7 +33,7 @@ cd ../server && npx prisma migrate dev
 # seed default divisions
 node prisma/seed-divisions.js
 
-# optional demo officers + attendance
+# optional fixed demo officers + attendance dataset
 node scripts/seed-demo.js
 
 # terminal 1

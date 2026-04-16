@@ -1,10 +1,8 @@
 'use strict'
 
-const { makeMsg, makeCallback, makeOfficer, setupMocks } = require('./helpers')
+const { makeMsg, makeCallback, setupMocks } = require('./helpers')
 
 const USER_ID = 100
-
-// ── Cold callbacks (no session) ───────────────────────────────────────────────
 
 describe('Cold callbacks — no session', () => {
   let bot, prisma, handleCallbackQuery
@@ -42,9 +40,6 @@ describe('Cold callbacks — no session', () => {
     expect(prisma.availability.upsert).not.toHaveBeenCalled()
   })
 })
-
-// ── Cancel with no session ────────────────────────────────────────────────────
-
 describe('Cancel with no session', () => {
   let bot, prisma, handleCallbackQuery
 
@@ -60,9 +55,6 @@ describe('Cancel with no session', () => {
     expect(prisma.availability.upsert).not.toHaveBeenCalled()
   })
 })
-
-// ── Rapid fire ────────────────────────────────────────────────────────────────
-
 describe('Rapid fire', () => {
   let bot, prisma, handleMessage, handleCallbackQuery
 
@@ -79,12 +71,9 @@ describe('Rapid fire', () => {
       msgIds.push(result.message_id)
     }
 
-    // sendMessage called 5 times (one per Report Today tap)
     expect(bot.sendMessage).toHaveBeenCalledTimes(5)
-    // Each new Report Today clears the previous keyboard
     expect(bot.editMessageReplyMarkup).toHaveBeenCalledTimes(4)
 
-    // Tap status:IN on the last (valid) message ID
     const lastMid = msgIds[msgIds.length - 1]
     await handleCallbackQuery(makeCallback(USER_ID, lastMid, 'status:IN'))
 
@@ -100,9 +89,6 @@ describe('Rapid fire', () => {
     expect(prisma.availability.upsert).not.toHaveBeenCalled()
   })
 })
-
-// ── Mixed sessions ────────────────────────────────────────────────────────────
-
 describe('Mixed sessions', () => {
   let bot, prisma, handleMessage, handleCallbackQuery
 
@@ -111,15 +97,11 @@ describe('Mixed sessions', () => {
   })
 
   test('Report Today then Plan This Week → week_cancel → "Cancelled.", no upsert', async () => {
-    // Open Report Today (creates single-day session)
     await handleMessage(makeMsg(USER_ID, '📋 Report Today'))
 
-    // Open Plan This Week (creates week session)
     await handleMessage(makeMsg(USER_ID, '📅 Plan This Week'))
-    // sendMessage calls: 1 for Report Today, 1 for Plan This Week grid
     const weekMsgId = (await bot.sendMessage.mock.results[1].value).message_id
 
-    // Cancel the week session
     await handleCallbackQuery(makeCallback(USER_ID, weekMsgId, 'week_cancel'))
 
     expect(prisma.availability.upsert).not.toHaveBeenCalled()
@@ -128,8 +110,6 @@ describe('Mixed sessions', () => {
   })
 })
 
-// ── edit_today flow ───────────────────────────────────────────────────────────
-
 describe('edit_today flow', () => {
   let bot, prisma, handleCallbackQuery
 
@@ -137,21 +117,19 @@ describe('edit_today flow', () => {
     ;({ bot, prisma, handlers: { handleCallbackQuery } } = setupMocks())
   })
 
-  test('edit_today → editMessageReplyMarkup on original msg, sendMessage "Change today\'s status?"', async () => {
+  test('edit_today → editMessageReplyMarkup on original msg, sendMessage "Choose today status."', async () => {
     const origMid = 55
 
     await handleCallbackQuery(makeCallback(USER_ID, origMid, 'edit_today'))
 
-    // editMessageReplyMarkup should be called to disable the original "Edit today's status" button
     expect(bot.editMessageReplyMarkup).toHaveBeenCalledTimes(1)
     const [markup, opts] = bot.editMessageReplyMarkup.mock.calls[0]
     expect(markup).toEqual({ inline_keyboard: [] })
     expect(opts.message_id).toBe(origMid)
 
-    // sendMessage should send a new status keyboard
     expect(bot.sendMessage).toHaveBeenCalledTimes(1)
     const [, text] = bot.sendMessage.mock.calls[0]
-    expect(text).toBe("Change today's status?")
+    expect(text).toBe('Choose today status.')
   })
 
   test('edit_today → status:OUT → reason:VL → upserts OUT/VL today, no "which date" in editMessageText calls', async () => {
@@ -170,19 +148,15 @@ describe('edit_today flow', () => {
     expect(upsertArg.create.status).toBe('OUT')
     expect(upsertArg.create.reason).toBe('VL')
 
-    // No "which date" prompts — edit_today sets reportToday: true
     const allEditTexts = bot.editMessageText.mock.calls.map(c => c[0])
     for (const t of allEditTexts) {
       expect(t).not.toMatch(/which date/i)
     }
 
-    // Confirm message should say Done
     const lastEdit = allEditTexts[allEditTexts.length - 1]
-    expect(lastEdit).toMatch(/done/i)
+    expect(lastEdit).toMatch(/saved/i)
   })
 })
-
-// ── Post-completion double-tap ─────────────────────────────────────────────────
 
 describe('Post-completion double-tap', () => {
   let bot, prisma, handleMessage, handleCallbackQuery
@@ -195,14 +169,11 @@ describe('Post-completion double-tap', () => {
     await handleMessage(makeMsg(USER_ID, '📋 Report Today'))
     const mid = (await bot.sendMessage.mock.results[0].value).message_id
 
-    // Complete the flow
     await handleCallbackQuery(makeCallback(USER_ID, mid, 'status:IN'))
     expect(prisma.availability.upsert).toHaveBeenCalledTimes(1)
 
-    // Try to tap again after session was cleared
     await handleCallbackQuery(makeCallback(USER_ID, mid, 'status:OUT'))
 
-    // Still only one upsert
     expect(prisma.availability.upsert).toHaveBeenCalledTimes(1)
 
     const allEditTexts = bot.editMessageText.mock.calls.map(c => c[0])
@@ -210,8 +181,6 @@ describe('Post-completion double-tap', () => {
     expect(expiredCall).toBeDefined()
   })
 })
-
-// ── Group chat callback ───────────────────────────────────────────────────────
 
 describe('Group chat callback', () => {
   let bot, prisma, handleCallbackQuery
@@ -221,7 +190,6 @@ describe('Group chat callback', () => {
   })
 
   test('Callback from group chat → no upsert, no editMessageText (just returns)', async () => {
-    // makeCallback with chat type 'group'
     const groupCallback = {
       id: 'cbq_group_test',
       from: { id: USER_ID },
@@ -238,8 +206,6 @@ describe('Group chat callback', () => {
     expect(bot.editMessageText).not.toHaveBeenCalled()
   })
 })
-
-// ── Unregistered user callback ────────────────────────────────────────────────
 
 describe('Unregistered user callback', () => {
   let bot, prisma, handleCallbackQuery

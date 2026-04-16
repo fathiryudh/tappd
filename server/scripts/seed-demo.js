@@ -1,8 +1,7 @@
-// Demo seed — 15 realistic SCDF officers with a week of attendance data
-// Today: 2026-04-15 (Wednesday)
-// Run: node scripts/seed-demo.js  (from server/)
+// Demo seed data for local development.
+// Run from `server/`: node scripts/seed-demo.js
 
-require('dotenv').config({ override: true })
+require('dotenv').config()
 const prisma = require('../src/config/prisma')
 
 // ── Dates ─────────────────────────────────────────────────────────────────────

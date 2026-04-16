@@ -4,23 +4,19 @@ const {
   makeMsg,
   makeCommandMsg,
   makeContactMsg,
+  makeGroupMsg,
   makeOfficer,
   setupMocks,
 } = require('./helpers')
 
-// Helper to grab the first sendMessage call's text
 const firstSendText = bot => bot.sendMessage.mock.calls[0]?.[1]
-// Helper to grab the first sendMessage call's reply_markup
 const firstSendMarkup = bot => bot.sendMessage.mock.calls[0]?.[2]?.reply_markup
-
-// ── /start ────────────────────────────────────────────────────────────────────
 
 describe('/start — unknown user', () => {
   let bot, prisma, handlers
 
   beforeEach(() => {
     ;({ bot, prisma, handlers } = setupMocks())
-    // Unknown user: findUnique returns null
     prisma.officer.findUnique.mockResolvedValue(null)
   })
 
@@ -89,7 +85,6 @@ describe('/start — known NSF officer', () => {
     await handleCommand(makeCommandMsg(100, '/start'))
 
     const options = bot.sendMessage.mock.calls[0]?.[2]
-    // reply_markup should be undefined (NSF officers get no persistent keyboard)
     expect(options?.reply_markup?.keyboard).toBeUndefined()
   })
 })
@@ -103,28 +98,19 @@ describe('/start — group chat', () => {
 
   it('rejects with "only works in private chats" message', async () => {
     const { handleCommand } = handlers
-    const groupMsg = {
-      from: { id: 100, username: 'testuser', first_name: 'Test' },
-      chat: { id: 200, type: 'group' },
-      text: '/start',
-    }
-    await handleCommand(groupMsg)
+    await handleCommand(makeGroupMsg(100, '/start', 200))
 
     expect(bot.sendMessage).toHaveBeenCalledTimes(1)
     expect(firstSendText(bot)).toMatch(/only works in private chats/i)
   })
 })
 
-// ── Phone verification ────────────────────────────────────────────────────────
-
 describe('Phone verification — valid phone, unlinked officer', () => {
   let bot, prisma, handlers
 
   beforeEach(() => {
     ;({ bot, prisma, handlers } = setupMocks())
-    // findUnique used by other flows — not relevant here
     prisma.officer.findUnique.mockResolvedValue(null)
-    // findFirst returns an officer with no telegramId yet
     prisma.officer.findFirst.mockResolvedValue(
       makeOfficer({ telegramId: null })
     )
@@ -184,11 +170,10 @@ describe('Phone verification — spoofed contact (sharing someone else\'s number
 
   it('does NOT update when contact.user_id !== sender id', async () => {
     const { handleMessage } = handlers
-    // Build a contact message where the user_id belongs to a different person
     const spoofedMsg = {
       from: { id: 100, username: 'attacker', first_name: 'Attacker' },
       chat: { id: 100, type: 'private' },
-      contact: { user_id: 999, phone_number: '+6591234567' }, // 999 !== 100
+      contact: { user_id: 999, phone_number: '+6591234567' },
     }
     await handleMessage(spoofedMsg)
 
@@ -205,7 +190,6 @@ describe('Phone verification — spoofed contact (sharing someone else\'s number
     await handleMessage(spoofedMsg)
 
     expect(bot.sendMessage).toHaveBeenCalledTimes(1)
-    // The bot says "Please share your own contact, not someone else's."
     expect(firstSendText(bot)).toMatch(/your own contact|someone else/i)
   })
 })
@@ -215,9 +199,8 @@ describe('Phone verification — phone already linked to another account', () =>
 
   beforeEach(() => {
     ;({ bot, prisma, handlers } = setupMocks())
-    // Officer already has a different telegramId
     prisma.officer.findFirst.mockResolvedValue(
-      makeOfficer({ telegramId: '999' }) // different from sender (100)
+      makeOfficer({ telegramId: '999' })
     )
   })
 
@@ -236,8 +219,6 @@ describe('Phone verification — phone already linked to another account', () =>
     expect(firstSendText(bot)).toMatch(/already linked|another account/i)
   })
 })
-
-// ── /deregister ───────────────────────────────────────────────────────────────
 
 describe('/deregister — confirmation prompt', () => {
   let bot, prisma, handlers
@@ -269,10 +250,8 @@ describe('/deregister — confirmed with "YES"', () => {
   it('calls prisma.officer.delete with telegramId after YES confirmation', async () => {
     const { handleCommand, handleMessage } = handlers
 
-    // Step 1: issue /deregister → sends prompt, adds to pendingDeletion
     await handleCommand(makeCommandMsg(100, '/deregister'))
 
-    // Step 2: send "YES" → should delete
     await handleMessage(makeMsg(100, 'YES'))
 
     expect(prisma.officer.delete).toHaveBeenCalledWith(
@@ -328,7 +307,6 @@ describe('/deregister — no profile found', () => {
 
   beforeEach(() => {
     ;({ bot, prisma, handlers } = setupMocks())
-    // No profile exists
     prisma.officer.findUnique.mockResolvedValue(null)
   })
 
@@ -340,7 +318,6 @@ describe('/deregister — no profile found', () => {
     expect(bot.sendMessage).toHaveBeenCalledTimes(1)
     expect(firstSendText(bot)).toMatch(/no profile found/i)
 
-    // Subsequent message should NOT trigger a deletion (not in pendingDeletion)
     bot.sendMessage.mockClear()
     prisma.officer.findUnique.mockResolvedValue(makeOfficer())
     await handleMessage(makeMsg(100, 'YES'))

@@ -1,10 +1,26 @@
 const router = require('express').Router()
 const { handleMessage, handleCommand, handleCallbackQuery } = require('../bot/telegram')
 
-// ── Rate limiter: 20 messages/minute per telegramId ──────────────────────────
 const rateLimits = new Map()
 const RATE_LIMIT = 20
 const RATE_WINDOW = 60000 // 1 minute
+
+function getTelegramId(update) {
+  return String(
+    update.callback_query?.from?.id
+    ?? update.message?.from?.id
+    ?? 0
+  )
+}
+
+function logUpdateError(kind, telegramId, error) {
+  const message = error?.message || error
+  console.error(`[BOT ROUTE] ${kind} failed for telegramId=${telegramId}:`, message)
+}
+
+function runUpdateHandler(kind, telegramId, handler) {
+  handler.catch(error => logUpdateError(kind, telegramId, error))
+}
 
 function isRateLimited(telegramId) {
   const now = Date.now()
@@ -18,7 +34,6 @@ function isRateLimited(telegramId) {
   return false
 }
 
-// Clean up stale entries every 5 minutes
 setInterval(() => {
   const now = Date.now()
   for (const [id, entry] of rateLimits) {
@@ -33,12 +48,7 @@ router.post('/telegram', (req, res) => {
   const update = req.body
   res.sendStatus(200)
 
-  // Extract telegramId for rate limiting
-  const telegramId = String(
-    update.callback_query?.from?.id ||
-    update.message?.from?.id ||
-    0
-  )
+  const telegramId = getTelegramId(update)
 
   if (telegramId !== '0' && isRateLimited(telegramId)) {
     console.warn(`[RATE LIMIT] telegramId=${telegramId}`)
@@ -46,22 +56,21 @@ router.post('/telegram', (req, res) => {
   }
 
   if (update.callback_query) {
-    handleCallbackQuery(update.callback_query).catch(console.error)
+    runUpdateHandler('callback query', telegramId, handleCallbackQuery(update.callback_query))
     return
   }
 
   if (update.message) {
-    // Handle contact messages (phone verification)
     if (update.message.contact) {
-      handleMessage(update.message).catch(console.error)
+      runUpdateHandler('contact message', telegramId, handleMessage(update.message))
       return
     }
 
     const text = update.message.text || ''
     if (text.startsWith('/')) {
-      handleCommand(update.message).catch(console.error)
+      runUpdateHandler('command', telegramId, handleCommand(update.message))
     } else {
-      handleMessage(update.message).catch(console.error)
+      runUpdateHandler('message', telegramId, handleMessage(update.message))
     }
   }
 })
