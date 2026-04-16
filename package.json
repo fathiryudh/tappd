@@ -1,0 +1,18 @@
+{
+  "name": "yappd",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace server",
+    "dev:client": "npm run dev --workspace client",
+    "build": "npm run build --workspace client",
+    "db:generate": "npm exec --workspace server prisma generate",
+    "db:pull": "npm exec --workspace server prisma db pull",
+    "db:seed-divisions": "node server/prisma/seed-divisions.js",
+    "prestart": "npm run db:generate",
+    "start": "npm run start --workspace server"
+  }
+}

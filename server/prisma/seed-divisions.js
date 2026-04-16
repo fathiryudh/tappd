@@ -1,11 +1,11 @@
 'use strict'
-const path = require('path')
-const { PrismaLibSql } = require('@prisma/adapter-libsql')
+require('dotenv').config()
+const { Pool } = require('pg')
+const { PrismaPg } = require('@prisma/adapter-pg')
 const { PrismaClient } = require('@prisma/client')
 
-const dbPath = path.join(__dirname, './yappd.db')
-const dbUrl = `file:${dbPath}`
-const adapter = new PrismaLibSql({ url: dbUrl })
+const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
 const DIVISIONS = [
@@ -31,4 +31,7 @@ async function main() {
 
 main()
   .catch(e => { console.error(e); process.exit(1) })
-  .finally(() => prisma.$disconnect())
+  .finally(async () => {
+    await prisma.$disconnect()
+    await pool.end()
+  })

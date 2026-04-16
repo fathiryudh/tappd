@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:pull": "prisma db pull",
     "test": "jest",
     "test:watch": "jest --watch"
   },
@@ -13,7 +15,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@prisma/adapter-libsql": "^7.7.0",
+    "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
@@ -24,7 +26,8 @@
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.2.1",
     "node-telegram-bot-api": "^0.67.0",
-    "nodemailer": "^8.0.5"
+    "nodemailer": "^8.0.5",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "jest": "^30.3.0",
