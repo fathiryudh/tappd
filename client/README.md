@@ -14,9 +14,10 @@ React 19 + Vite admin client for Yappd.
 - `/login` admin sign-in
 - `/register` admin workspace creation
 - `/dashboard` protected admin dashboard
-- `/roster` roster view
+- `/attendance` weekly attendance board
 
 ## Notes
 
 - API calls use the Vite proxy configured in `vite.config.js`.
 - Geist fonts are loaded from the installed `geist` package in `src/index.css`.
+- In production the built client is served by the Express server from `client/dist`.

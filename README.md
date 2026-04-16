@@ -21,28 +21,26 @@ Admin dashboard plus Telegram bot for daily attendance reporting at SCDF 2nd Div
 - Roster view for officer records
 - Attendance view for Mon-Fri weekly status
 - Shared login/register auth layout under `client/src/pages/auth/`
-- Standalone `/roster` page for the attendance board without the admin sidebar
+- Standalone `/attendance` page for the weekly attendance board without the admin sidebar
+- Public `/roster` page for the Telegram-linked day roster view
 
 ## Run Locally
 ```bash
-# install dependencies
-cd server && npm install
-cd ../client && npm install
+# install dependencies from the repo root
+npm install
 
-# apply migrations
-cd ../server && npx prisma migrate dev
+# generate Prisma client
+cd server && npx prisma generate
 
-# seed default divisions
+# optional seed default divisions in Supabase
 node prisma/seed-divisions.js
 
-# optional fixed demo officers + attendance dataset
-node scripts/seed-demo.js
-
 # terminal 1
+cd ..
 npm run dev
 
 # terminal 2
-cd ../client && npm run dev
+npm run dev:client
 
 # terminal 3
 ngrok http 8000
@@ -55,6 +53,14 @@ Create `server/.env`:
 
 ```env
 PORT=8000
+DB_HOST=aws-1-ap-southeast-1.pooler.supabase.com
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres.[project-ref]
+DB_PASSWORD=
+DB_SCHEMA=public
+DB_USE_LIBPQ_COMPAT=true
+DB_SSLMODE=require
 JWT_ACCESS_SECRET=
 JWT_REFRESH_SECRET=
 JWT_ACCESS_EXPIRES=15m
@@ -75,6 +81,49 @@ DIGEST_EMAIL=
 BOT_ADMIN_EMAIL=
 ```
 
+`DATABASE_URL` is still supported as an override, but the app can now build the Postgres connection string from the `DB_*` variables so the password can stay separate.
+
+If you need to re-import legacy local data into Supabase:
+
+```bash
+node server/scripts/migrate-sqlite-to-supabase.js server/prisma/yappd.db
+```
+
+## Production Deploy
+This repo can now be deployed as one Node app:
+
+```bash
+npm install
+npm run build
+npm run db:generate
+npm start
+```
+
+What that does:
+- builds the Vite client into `client/dist`
+- serves the built frontend from Express on the same origin as the API
+- keeps API routes under `/api/v1`
+- keeps the public `/roster` and `/weekly-roster` server routes available
+
+Recommended production env:
+
+```env
+NODE_ENV=production
+PORT=8000
+DB_HOST=aws-1-ap-southeast-1.pooler.supabase.com
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres.[project-ref]
+DB_PASSWORD=replace-me
+DB_SCHEMA=public
+DB_USE_LIBPQ_COMPAT=true
+DB_SSLMODE=require
+JWT_ACCESS_SECRET=replace-me
+JWT_REFRESH_SECRET=replace-me
+WEBHOOK_BASE_URL=https://your-domain.example
+TELEGRAM_WEBHOOK_SECRET=replace-me
+```
+
 ## Checks
 ```bash
 cd client && npm run lint
@@ -89,10 +138,12 @@ cd ../server && npm test
 ## Notes
 - Attendance day matching uses explicit UTC start-of-day conversion on the server so Singapore dates do not drift into the previous or next day.
 - The old legacy preview auth/roster pages were removed; the active auth flow now lives only in the shared auth layout and the real login/register pages.
+- In production the React app is served by Express, so `/login`, `/register`, `/dashboard`, and `/attendance` live on the same host as the API.
+- The checked-in Prisma migration history is from the earlier SQLite phase and should not be applied to Supabase.
 
 ## Stack
 - React + Vite + Tailwind CSS
 - Node.js + Express
-- Prisma 7 + SQLite
+- Prisma 7 + Supabase Postgres
 - `node-telegram-bot-api`
 - Jest

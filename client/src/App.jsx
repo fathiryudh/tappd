@@ -11,7 +11,8 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/roster" element={<Roster />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/attendance" element={<Roster />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
