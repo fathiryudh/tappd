@@ -5,7 +5,8 @@ Admin dashboard plus Telegram bot for daily attendance reporting at SCDF 2nd Div
 ## What It Does
 - Officers register and report attendance through Telegram.
 - Admins manage the roster and review weekly attendance from the web dashboard.
-- The dashboard also shows live notification events as officers submit or edit status.
+- The dashboard shows live notification events as officers submit or edit status.
+- The attendance view can be refreshed manually and also updates automatically when new officer status notifications arrive.
 
 ## Telegram Bot
 - Self-registration through `/start`
@@ -19,6 +20,7 @@ Admin dashboard plus Telegram bot for daily attendance reporting at SCDF 2nd Div
 - `/dashboard` for the admin app
 - Roster view for officer records
 - Attendance view for Mon-Fri weekly status
+- Shared login/register auth layout under `client/src/pages/auth/`
 - Standalone `/roster` page for the attendance board without the admin sidebar
 
 ## Run Locally
@@ -79,6 +81,14 @@ cd client && npm run lint
 cd client && npm run build
 cd ../server && npm test
 ```
+
+## Utilities
+- `cd server && node scripts/add-officer.js <phoneNumber> <name> <rank> <adminEmail> [divisionName] [branchName] [telegramId]`
+- `cd server && node scripts/reassign-admin.js <fromAdminId> <toAdminId>`
+
+## Notes
+- Attendance day matching uses explicit UTC start-of-day conversion on the server so Singapore dates do not drift into the previous or next day.
+- The old legacy preview auth/roster pages were removed; the active auth flow now lives only in the shared auth layout and the real login/register pages.
 
 ## Stack
 - React + Vite + Tailwind CSS

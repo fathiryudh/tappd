@@ -2,6 +2,7 @@
 
 ## Architecture
 - `client/` is a React 19 + Vite admin app. Main screens live in `client/src/pages`; reusable UI lives in `client/src/components`.
+- `client/src/pages/auth/` holds the shared auth layout used by login and register.
 - `server/` is an Express API plus the Telegram bot. Bot state is managed in-memory in `server/src/bot/telegram.js`.
 - Data is stored in SQLite at `server/prisma/yappd.db` and accessed through Prisma 7.
 - Core records:
@@ -29,6 +30,7 @@
   - `cd server && npx prisma studio`
   - `cd server && node prisma/seed-divisions.js`
   - `cd server && node scripts/seed-demo.js`
+  - `cd server && node scripts/reassign-admin.js <fromAdminId> <toAdminId>`
 
 ## Coding Conventions
 - Use Prisma, not raw SQL.
@@ -38,6 +40,7 @@
 - Keep Telegram copy and button labels aligned with the existing bot UX unless the task requires changing them.
 - Update or add Jest tests in `server/tests/bot` when bot behavior changes.
 - Keep dashboard date handling in local time when the UI is meant to reflect Singapore workdays.
+- When storing or querying attendance by ISO day, use the shared date helpers in `server/src/utils/date.js` instead of ad hoc `new Date('YYYY-MM-DD')` parsing.
 
 ## Constraints
 - SQLite compatibility matters. Do not use Prisma options unsupported by SQLite.
@@ -47,4 +50,5 @@
 - `Division` and `Branch` are normalized tables. Do not reintroduce free-text department fields.
 - `Officer.phoneNumber` is required, unique, and must stay normalized through `normalizePhone`.
 - Bot sessions are in-memory Maps. Preserve stale-keyboard and message-id guards when changing Telegram flows.
+- The dashboard attendance view refreshes both on its own timer and when new officer notification events arrive. Keep those paths aligned.
 - There is no server lint script. Do not document or rely on one unless you add it first.
