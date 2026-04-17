@@ -1178,7 +1178,7 @@ async function handleMessage(msg) {
 
   if (pendingDeletion.has(telegramId)) {
     pendingDeletion.delete(telegramId)
-    if (rawMessage.toLowerCase() === 'yes') {
+    if (rawMessage.toUpperCase() === 'YES') {
       const officerToDelete = await prisma.officer.findUnique({ where: { telegramId } })
       if (officerToDelete) {
         await prisma.officer.delete({ where: { telegramId } })
