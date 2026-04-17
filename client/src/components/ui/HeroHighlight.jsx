@@ -1,4 +1,4 @@
-import { useMotionValue, useMotionTemplate } from 'framer-motion'
+import { motion, useMotionValue, useMotionTemplate } from 'framer-motion'
 
 const dotPattern = (color) => ({
   backgroundImage: `radial-gradient(circle, ${color} 1px, transparent 1px)`,
