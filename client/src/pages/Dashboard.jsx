@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -42,7 +42,7 @@ const NAV_ITEMS = [
   { id: 'roster', icon: Users, label: 'Roster', eyebrow: 'Directory' },
 ]
 
-const toastLifetimeMs = 4200
+const toastLifetimeMs = 3000
 
 export default function Dashboard() {
   const [activeNav, setActiveNav] = useState('attendance')
@@ -77,26 +77,26 @@ export default function Dashboard() {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
 
+  const dismissToast = useCallback((toastId) => {
+    setLiveToasts(prev => prev.filter(item => item.toastId !== toastId))
+    const timer = toastTimersRef.current.get(toastId)
+    if (timer) {
+      clearTimeout(timer)
+      toastTimersRef.current.delete(toastId)
+    }
+  }, [])
+
   useEffect(() => {
     let alive = true
     const toastTimers = toastTimersRef.current
 
-    const dismissToast = (toastId) => {
-      setLiveToasts(prev => prev.filter(item => item.toastId !== toastId))
-      const timer = toastTimers.get(toastId)
-      if (timer) {
-        clearTimeout(timer)
-        toastTimers.delete(toastId)
-      }
-    }
-
     const pushLiveToasts = (items) => {
-      const nextToasts = items.slice(0, 3).map(item => ({
+      const nextToasts = items.slice(0, 2).map(item => ({
         toastId: `${item.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         item,
       }))
 
-      setLiveToasts(prev => [...nextToasts, ...prev].slice(0, 4))
+      setLiveToasts(prev => [...nextToasts, ...prev].slice(0, 2))
 
       nextToasts.forEach(toast => {
         const timer = setTimeout(() => dismissToast(toast.toastId), toastLifetimeMs)
@@ -135,7 +135,7 @@ export default function Dashboard() {
       toastTimers.forEach(timer => clearTimeout(timer))
       toastTimers.clear()
     }
-  }, [])
+  }, [dismissToast])
 
   useEffect(() => {
     if (!notificationsOpen) return
@@ -453,6 +453,16 @@ export default function Dashboard() {
                     {item.message}
                   </p>
                 </div>
+                <button
+                  onClick={() => dismissToast(toastId)}
+                  className="self-start rounded-full p-1 transition-colors duration-150"
+                  style={{ color: COLORS.muted }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '' }}
+                  aria-label="Dismiss notification"
+                >
+                  <X size={14} weight="regular" />
+                </button>
               </div>
             </MotionAside>
           ))}

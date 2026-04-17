@@ -91,9 +91,10 @@ export default function OfficerList({
         if (stale) return
         setError(getRequestErrorMessage(err, 'Could not load officers.'))
       } finally {
-        if (stale) return
-        setLoading(false)
-        setTimeout(() => setRevealed(true), 40)
+        if (!stale) {
+          setLoading(false)
+          setTimeout(() => setRevealed(true), 40)
+        }
       }
     }
 
