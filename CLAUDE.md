@@ -1,11 +1,13 @@
 # CLAUDE.md
 
 ## Architecture
-- `client/` is a React 19 + Vite admin app. Main screens live in `client/src/pages`; reusable UI lives in `client/src/components`.
-- `client/src/pages/auth/` holds the shared auth layout used by login and register.
+- `client/` is a React 19 + Vite admin app. Main screens live in `client/src/pages`; reusable UI lives in `client/src/components/ui/`.
+- `client/src/pages/auth/` holds the shared auth layout (`AuthLayout`, `AuthField`, `AuthError`) used by Login and Register.
+- `client/src/components/ui/HeroHighlight.jsx` — dot-pattern background with mouse-tracked indigo reveal; used as the left panel of the auth layout.
+- Auth layout is `flex-col` on mobile/tablet, `xl:grid` with two columns and explicit `h-[100dvh]` on desktop. Do not reintroduce `min-h` + `1fr` rows — that breaks mobile scroll and creates layout gaps.
 - `server/` is an Express API plus the Telegram bot. Bot state is managed in-memory in `server/src/bot/telegram.js`.
 - Data is stored in Supabase Postgres and accessed through Prisma 7 with `pg` + `@prisma/adapter-pg`.
-- The local SQLite file at `server/prisma/yappd.db` is a migration source snapshot, not the runtime database.
+- **Prisma is used schema-first (`db pull`) — no migrations are run against Supabase.** The checked-in migrations under `server/prisma/migrations` are SQLite-era history only; ignore them.
 - Core records:
   - `User` owns admin access.
   - `Officer` is the roster entity and may reference `Division` and `Branch`.
@@ -69,12 +71,13 @@
 ## Constraints
 - Prisma datasource config is split across `server/prisma/schema.prisma` and `server/prisma/prisma.config.ts`.
   - Do not add `url =` to the datasource block.
-  - Runtime DB config is built from `DATABASE_URL` or the `DB_*` env vars in `server/.env`.
+  - Runtime DB config is built from `DATABASE_URL` or the `DB_*` env vars in `server/.env`. See `server/.env.example` for the full Supabase template.
   - Use `DB_USE_LIBPQ_COMPAT=true` with Supabase pooler connections.
+- Do not run `prisma migrate` against Supabase. Use `prisma db pull` to sync the schema from the live DB.
 - `Division` and `Branch` are normalized tables. Do not reintroduce free-text department fields.
 - `Officer.phoneNumber` is required, unique, and must stay normalized through `normalizePhone`.
 - Bot sessions are in-memory Maps. Preserve stale-keyboard and message-id guards when changing Telegram flows.
 - The dashboard attendance view refreshes both on its own timer and when new officer notification events arrive. Keep those paths aligned.
+- Dashboard desktop shell uses `h-[100dvh] overflow-hidden`; inner panels (`OfficerList`, `RosterView`) scroll independently. Do not put overflow on the outer shell.
 - There is no server lint script. Do not document or rely on one unless you add it first.
-- The checked-in Prisma migrations under `server/prisma/migrations` are SQLite-era history and must not be applied to Supabase.
 - Render production deploys should come from `main`, not random feature branches.
