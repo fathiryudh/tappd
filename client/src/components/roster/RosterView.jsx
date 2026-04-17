@@ -262,12 +262,32 @@ export default function RosterView({
             >
               Attendance
             </h1>
-            <p
-              className="mt-3 text-base md:text-lg"
-              style={{ color: COLORS.muted }}
-            >
-              {weekLabel}
-            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-base md:text-lg" style={{ color: COLORS.muted }}>
+                {weekLabel}
+              </span>
+              <div
+                className="flex items-center rounded-full px-0.5 py-0.5"
+                style={{ background: 'rgba(0,0,0,0.06)' }}
+              >
+                <NavBtn onClick={prevWeek}>←</NavBtn>
+                {!isCurrentWeek && (
+                  <NavBtn onClick={goToday} small>Today</NavBtn>
+                )}
+                <NavBtn onClick={nextWeek}>→</NavBtn>
+              </div>
+              <NavBtn
+                onClick={() => fetchData({ silent: true })}
+                small
+                disabled={refreshing}
+                title={refreshing ? 'Refreshing attendance' : 'Refresh attendance'}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <ArrowsClockwise size={12} className={refreshing ? 'animate-spin' : ''} />
+                  {refreshing ? 'Refreshing' : 'Refresh'}
+                </span>
+              </NavBtn>
+            </div>
           </div>
 
           <div className="flex flex-col items-start gap-3 lg:items-end">
@@ -295,25 +315,6 @@ export default function RosterView({
                 )}
               </div>
             )}
-
-            <div className="flex items-center gap-1">
-              <NavBtn
-                onClick={() => fetchData({ silent: true })}
-                small
-                disabled={refreshing}
-                title={refreshing ? 'Refreshing attendance' : 'Refresh attendance'}
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <ArrowsClockwise size={12} className={refreshing ? 'animate-spin' : ''} />
-                  {refreshing ? 'Refreshing' : 'Refresh'}
-                </span>
-              </NavBtn>
-              <NavBtn onClick={prevWeek}>←</NavBtn>
-              {!isCurrentWeek && (
-                <NavBtn onClick={goToday} small>Today</NavBtn>
-              )}
-              <NavBtn onClick={nextWeek}>→</NavBtn>
-            </div>
           </div>
         </div>
       </div>
