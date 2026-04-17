@@ -1,0 +1,78 @@
+# Progress
+
+## What We Accomplished
+- Switched the app runtime back from SQLite to Supabase Postgres.
+- Updated Prisma runtime configuration to use `pg` and `@prisma/adapter-pg`.
+- Changed Prisma datasource/provider to PostgreSQL.
+- Confirmed the checked-in Prisma migrations are SQLite-era history and should not be applied to Supabase.
+- Introspected the live Supabase schema and compared it against `server/prisma/schema.prisma`.
+- Identified schema mismatches in `Officer`, `Availability`, `Division`, `Branch`, and `NotificationEvent`.
+- Applied a non-destructive Phase 1 Supabase reconciliation:
+  - created `Division`
+  - created `Branch`
+  - created `NotificationEvent`
+  - added missing `Officer` columns
+  - added `Availability.splitDay`
+  - corrected key foreign key behavior
+- Backfilled `Officer.phoneNumber` and enforced `NOT NULL`.
+- Migrated the legacy SQLite data from `server/prisma/yappd.db` into Supabase:
+  - `User`
+  - `Division`
+  - `Branch`
+  - `Officer`
+  - `Availability`
+  - `NotificationEvent`
+- Fixed the runtime TLS issue for Supabase pooler connections by supporting `DB_USE_LIBPQ_COMPAT=true` and `DB_SSLMODE=require`.
+- Added support for building the database connection string from `DB_*` environment variables instead of requiring a single hardcoded `DATABASE_URL`.
+- Fixed env loading so the server explicitly reads `server/.env`.
+- Updated the app to serve the built frontend from Express in production.
+- Added deployment and migration documentation.
+- Created and committed the main recovery/deployment commits:
+  - `8e63104` `Switch server back to Supabase Postgres`
+  - `a0eef8c` `Update client styling and deployment docs`
+  - `1f067be` `Regenerate workspace lockfile for Render build`
+
+## Current State
+- The website is live on Render at `https://yappd.onrender.com/login`.
+- Supabase is now the active runtime database.
+- The SQLite file is now a legacy migration source snapshot, not the live database.
+- The imported Supabase data includes:
+  - `User`: 3
+  - `Division`: 6
+  - `Branch`: 2
+  - `Officer`: 4
+  - `Availability`: 12
+  - `NotificationEvent`: 42
+- The app is in a generally deployable state and Render is using the new codebase.
+- The Telegram bot is not fully working yet because the webhook was previously pointing at the placeholder Render hostname instead of the real live hostname.
+- The correct live hostname is `https://yappd.onrender.com`.
+- The Render env configuration still needs to be fully aligned for bot/webhook production use.
+- Local uncommitted changes currently exist in:
+  - `CLAUDE.md`
+  - `README.md`
+  - `server/.env.example`
+- There is also an untracked local backup file:
+  - `server/prisma/yappd.db.pre_notification_backup`
+
+## Next Steps
+- Fix the Telegram bot production webhook configuration:
+  - set `WEBHOOK_BASE_URL=https://yappd.onrender.com`
+  - set `CLIENT_ORIGIN=https://yappd.onrender.com`
+  - set a valid `TELEGRAM_WEBHOOK_SECRET`
+  - confirm `TELEGRAM_BOT_TOKEN` is correct
+  - redeploy Render
+  - verify with Telegram `getWebhookInfo`
+- Confirm Render environment variables are complete and correct:
+  - database vars
+  - JWT secrets
+  - bot/webhook vars
+  - SMTP vars
+  - `NPM_CONFIG_PRODUCTION=false`
+- Push any remaining required commits before future redeploys.
+- Decide whether to commit the current doc updates in `CLAUDE.md` and `README.md`.
+- Keep future work on feature branches instead of directly on `main`.
+- For future changes:
+  - create branch from `main`
+  - test locally first
+  - push branch
+  - merge to `main` only when ready for production

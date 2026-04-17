@@ -48,6 +48,29 @@ ngrok http 8000
 
 Set `WEBHOOK_BASE_URL` in `server/.env` to the ngrok HTTPS URL before testing Telegram webhook flows locally.
 
+## Safe Change Workflow
+If you want to make changes without touching the live site, use a feature branch.
+
+```bash
+git checkout main
+git pull origin main
+git checkout -b my-feature-branch
+```
+
+Do your work on that branch, test locally, then commit and push:
+
+```bash
+git add .
+git commit -m "Describe the change"
+git push -u origin my-feature-branch
+```
+
+Important:
+- `main` is the live production branch
+- one branch should usually be one small goal
+- test locally before merging to `main`
+- commit once per logical change, not once per file
+
 ## Environment
 Create `server/.env`:
 
@@ -104,6 +127,14 @@ What that does:
 - serves the built frontend from Express on the same origin as the API
 - keeps API routes under `/api/v1`
 - keeps the public `/roster` and `/weekly-roster` server routes available
+
+How Render works in simple terms:
+- Render watches a GitHub branch, usually `main`
+- your local changes are not live until you `git push`
+- once the new commit is on GitHub, Render can deploy it
+- if you work on a feature branch, production stays unchanged unless Render is told to deploy that branch
+- Render environment variables are production settings and secrets; they are separate from your local `server/.env`
+- if you change Render env vars, redeploy the service so the new values are used
 
 Recommended production env:
 

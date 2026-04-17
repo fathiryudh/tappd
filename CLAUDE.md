@@ -34,6 +34,28 @@
   - `cd server && node scripts/reassign-admin.js <fromAdminId> <toAdminId>`
   - `node server/scripts/migrate-sqlite-to-supabase.js server/prisma/yappd.db`
 
+## Git Workflow
+- `main` is the production branch. Do not do casual work directly on `main`.
+- Create one feature branch per small task. Examples: `fix-telegram-webhook`, `attendance-ui-tweak`.
+- Test changes locally on the feature branch before merging to `main`.
+- Typical flow:
+  - `git checkout main`
+  - `git pull origin main`
+  - `git checkout -b <feature-branch>`
+  - make changes
+  - run local checks
+  - `git add <files>`
+  - `git commit -m "<purpose of change>"`
+- `git push -u origin <feature-branch>`
+- Commit messages should describe one logical change, not one file. Good: `Fix Telegram webhook registration`. Bad: `edit app.jsx`.
+
+## Render Deploy Flow
+- Render production deploys come from the GitHub branch configured for the service, normally `main`.
+- Local edits on your machine do nothing to production until you commit, push, and Render deploys that branch.
+- Feature branches are safe for local work and GitHub backup unless Render is explicitly pointed at them.
+- Production secrets and runtime config belong in Render environment variables, not in local `.env` files committed to git.
+- After changing Render environment variables, trigger a redeploy or restart so the app starts with the new values.
+
 ## Coding Conventions
 - Use Prisma, not raw SQL.
 - Use `async/await`; avoid callback flow and `.then()` chains in app logic.
@@ -55,3 +77,4 @@
 - The dashboard attendance view refreshes both on its own timer and when new officer notification events arrive. Keep those paths aligned.
 - There is no server lint script. Do not document or rely on one unless you add it first.
 - The checked-in Prisma migrations under `server/prisma/migrations` are SQLite-era history and must not be applied to Supabase.
+- Render production deploys should come from `main`, not random feature branches.
