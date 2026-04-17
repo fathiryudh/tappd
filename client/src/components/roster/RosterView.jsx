@@ -180,9 +180,10 @@ export default function RosterView({
       if (!isMountedRef.current) return
       setError('Could not load roster data.')
     } finally {
-      if (!isMountedRef.current) return
-      if (silent) setRefreshing(false)
-      else setLoading(false)
+      if (isMountedRef.current) {
+        if (silent) setRefreshing(false)
+        else setLoading(false)
+      }
     }
   }, [weekStart, filter.divisionId, filter.branchId])
 
@@ -268,13 +269,13 @@ export default function RosterView({
               </span>
               <div
                 className="flex items-center rounded-full px-0.5 py-0.5"
-                style={{ background: 'rgba(0,0,0,0.06)' }}
+                style={{ background: 'rgba(0,0,0,0.04)' }}
               >
-                <NavBtn onClick={prevWeek}>←</NavBtn>
+                <NavBtn onClick={prevWeek} title="Previous week">←</NavBtn>
                 {!isCurrentWeek && (
                   <NavBtn onClick={goToday} small>Today</NavBtn>
                 )}
-                <NavBtn onClick={nextWeek}>→</NavBtn>
+                <NavBtn onClick={nextWeek} title="Next week">→</NavBtn>
               </div>
               <NavBtn
                 onClick={() => fetchData({ silent: true })}
