@@ -272,6 +272,26 @@ describe('/deregister — confirmed with "YES"', () => {
   })
 })
 
+describe('/deregister — confirmed with lowercase "yes" variants', () => {
+  let bot, prisma, handlers
+
+  beforeEach(() => {
+    ;({ bot, prisma, handlers } = setupMocks())
+    prisma.officer.findUnique.mockResolvedValue(makeOfficer())
+  })
+
+  it.each(['yes', 'Yes', 'yEs', 'YES'])('deletes officer when user types "%s"', async (variant) => {
+    const { handleCommand, handleMessage } = handlers
+
+    await handleCommand(makeCommandMsg(100, '/deregister'))
+    await handleMessage(makeMsg(100, variant))
+
+    expect(prisma.officer.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { telegramId: '100' } })
+    )
+  })
+})
+
 describe('/deregister — cancelled with non-YES reply', () => {
   let bot, prisma, handlers
 

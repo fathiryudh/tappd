@@ -4,6 +4,9 @@ const mockPrisma = {
   division: {
     findMany: jest.fn(),
   },
+  branch: {
+    findMany: jest.fn(),
+  },
   officer: {
     create: jest.fn(),
     findFirst: jest.fn(),
@@ -75,10 +78,11 @@ describe('officers.controller', () => {
     expect(res.json).toHaveBeenCalledWith({ id: 'off_1' })
   })
 
-  test('getOfficerFormOptions returns divisions ordered by name', async () => {
+  test('getOfficerFormOptions returns divisions and branches ordered by name', async () => {
     const req = { user: { sub: 'admin_1' } }
     const res = makeRes()
     mockPrisma.division.findMany.mockResolvedValue([{ id: 'div_1', name: '2nd Div' }])
+    mockPrisma.branch.findMany.mockResolvedValue([{ id: 'br_1', name: 'OPS' }])
 
     await getOfficerFormOptions(req, res)
 
@@ -86,8 +90,13 @@ describe('officers.controller', () => {
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     })
+    expect(mockPrisma.branch.findMany).toHaveBeenCalledWith({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    })
     expect(res.json).toHaveBeenCalledWith({
       divisions: [{ id: 'div_1', name: '2nd Div' }],
+      branches: [{ id: 'br_1', name: 'OPS' }],
     })
   })
 

@@ -227,7 +227,12 @@ router.get('/weekly-roster', async (req, res) => {
   const week = buildWorkWeek(monday)
   const weekDates = week.map(toUTCStartOfDay)
 
+  const where = {}
+  if (typeof req.query.divisionId === 'string' && req.query.divisionId) where.divisionId = req.query.divisionId
+  if (typeof req.query.branchId === 'string' && req.query.branchId) where.branchId = req.query.branchId
+
   const officers = await prisma.officer.findMany({
+    where,
     include: {
       availability: { where: { date: { in: weekDates } } },
     },

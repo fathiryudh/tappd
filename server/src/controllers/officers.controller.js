@@ -101,12 +101,18 @@ const addOfficer = async (req, res) => {
 }
 
 const getOfficerFormOptions = async (req, res) => {
-  const divisions = await prisma.division.findMany({
-    orderBy: { name: 'asc' },
-    select: OFFICER_FORM_OPTION_SELECT,
-  })
+  const [divisions, branches] = await Promise.all([
+    prisma.division.findMany({
+      orderBy: { name: 'asc' },
+      select: OFFICER_FORM_OPTION_SELECT,
+    }),
+    prisma.branch.findMany({
+      orderBy: { name: 'asc' },
+      select: OFFICER_FORM_OPTION_SELECT,
+    }),
+  ])
 
-  res.json(serializeFormOptions({ divisions }))
+  res.json(serializeFormOptions({ divisions, branches }))
 }
 
 const updateOfficer = async (req, res) => {

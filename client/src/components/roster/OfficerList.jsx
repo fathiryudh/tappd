@@ -7,6 +7,7 @@ import {
   RosterLocationBadge,
   RosterShell,
 } from './RosterPrimitives'
+import DivisionBranchFilter from './DivisionBranchFilter'
 import { ROSTER_COLORS as COLORS, getRevealStyle } from './rosterTheme'
 import { buildOfficerPayload, createEmptyOfficerForm } from '../../lib/officerForm'
 
@@ -28,7 +29,15 @@ function updateField(setForm, field) {
 const CONTROL_CLASS_NAME = 'w-full rounded-[1rem] border border-transparent px-4 py-3 text-sm transition-colors duration-200 focus:outline-none'
 const CONTROL_STYLE = { color: COLORS.text, background: COLORS.soft }
 
-export default function OfficerList() {
+export default function OfficerList({
+  filter = { divisionId: '', branchId: '' },
+  onFilterChange,
+  divisions = [],
+  branches = [],
+  pinnedFilter,
+  onPin,
+  onUnpin,
+}) {
   const [officers, setOfficers] = useState([])
   const [divisionOptions, setDivisionOptions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -62,22 +71,35 @@ export default function OfficerList() {
   }
 
   useEffect(() => {
+    fetchOfficerFormOptions()
+      .then(optionData => setDivisionOptions(optionData.divisions || []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    let stale = false
+    setLoading(true)
+    setRevealed(false)
+
     const load = async () => {
       try {
-        const [officerData, optionData] = await Promise.all([fetchOfficers(), fetchOfficerFormOptions()])
+        const officerData = await fetchOfficers({ divisionId: filter.divisionId, branchId: filter.branchId })
+        if (stale) return
         setOfficers(officerData)
-        setDivisionOptions(optionData.divisions || [])
         setError(null)
       } catch (err) {
+        if (stale) return
         setError(getRequestErrorMessage(err, 'Could not load officers.'))
       } finally {
+        if (stale) return
         setLoading(false)
         setTimeout(() => setRevealed(true), 40)
       }
     }
 
     load()
-  }, [])
+    return () => { stale = true }
+  }, [filter.divisionId, filter.branchId])
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -111,6 +133,20 @@ export default function OfficerList() {
         <div className="mb-5">
           <RosterLocationBadge />
         </div>
+
+        {onFilterChange && (
+          <div className="mb-5">
+            <DivisionBranchFilter
+              divisions={divisions}
+              branches={branches}
+              filter={filter}
+              onFilterChange={onFilterChange}
+              pinnedFilter={pinnedFilter}
+              onPin={onPin}
+              onUnpin={onUnpin}
+            />
+          </div>
+        )}
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>

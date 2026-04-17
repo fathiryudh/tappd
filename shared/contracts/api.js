@@ -51,6 +51,7 @@
 /**
  * @typedef {Object} OfficerFormOptions
  * @property {NamedRelation[]} divisions
+ * @property {NamedRelation[]} branches
  */
 
 /**
@@ -158,9 +159,10 @@ function serializeOfficerCollection(officers) {
   return officers.map(serializeOfficer)
 }
 
-function serializeFormOptions({ divisions = [] } = {}) {
+function serializeFormOptions({ divisions = [], branches = [] } = {}) {
   return {
     divisions: divisions.map(serializeNamedRelation),
+    branches: branches.map(serializeNamedRelation),
   }
 }
 
