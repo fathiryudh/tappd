@@ -146,7 +146,11 @@ export default function RosterView({
 }) {
   const now = new Date()
   const todayISO = localISODate(now)
-  const [weekStart, setWeekStart] = useState(() => getMondayOfWeek(todayISO))
+  const [weekStart, setWeekStart] = useState(() => {
+    const dow = new Date(todayISO + 'T00:00:00').getDay()
+    if (dow === 0 || dow === 6) return addDays(getMondayOfWeek(todayISO), 7)
+    return getMondayOfWeek(todayISO)
+  })
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)

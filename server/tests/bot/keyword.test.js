@@ -4,6 +4,10 @@ const { makeMsg, makeGroupMsg, setupMocks } = require('./helpers')
 
 const USER_ID = 100
 
+// Pin date to a known weekday so weekend guards don't fire during tests
+beforeAll(() => jest.useFakeTimers({ now: new Date('2026-04-14T08:00:00') }))
+afterAll(() => jest.useRealTimers())
+
 function localISODate(date = new Date()) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')

@@ -25,6 +25,11 @@ function localISODate(date = new Date()) {
   return `${y}-${m}-${d}`
 }
 
+function isWeekend(isoDate) {
+  const dow = new Date(isoDate + 'T00:00:00').getDay()
+  return dow === 0 || dow === 6
+}
+
 function isSplitRecord(record) {
   return !!(record && record.notes && record.notes.includes('AM'))
 }
@@ -1208,6 +1213,13 @@ async function handleMessage(msg) {
     const officer = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officer) { await promptVerification(chatId); return }
     if (officer.role === 'NSF') { await bot.sendMessage(chatId, 'NSFs cannot log attendance. Use /roster to view the roster.'); return }
+    if (isWeekend(todayISO)) {
+      await bot.sendMessage(chatId,
+        "It's the weekend — no need to report today.\nUse Plan Next Week to set your status for next week.",
+        { reply_markup: replyKeyboardMarkup() }
+      )
+      return
+    }
     const existingSession = sessions.get(telegramId)
     if (existingSession?.messageId) {
       try {
@@ -1403,6 +1415,14 @@ async function handleMessage(msg) {
 
   const matched = keywordMatch(rawMessage, todayISO, tomorrowISO)
   if (matched) {
+    const allWeekend = matched.every(r => isWeekend(r.date))
+    if (allWeekend) {
+      await bot.sendMessage(chatId,
+        "It's the weekend — no need to report.\nUse Plan Next Week to plan ahead.",
+        { reply_markup: replyKeyboardMarkup() }
+      )
+      return
+    }
     await storeAndConfirm(matched, officer, chatId, rawMessage)
     return
   }
@@ -1867,6 +1887,10 @@ async function handleCommand(msg) {
     }
     const todayISO = localISODate()
     const tomorrowISO = localISODate(new Date(Date.now() + 86400000))
+    if (isWeekend(todayISO)) {
+      await bot.sendMessage(msg.chat.id, "It's the weekend — no need to report today.")
+      return
+    }
     const session = { step: 'STATUS', status: null, reason: null, splitDay: false, amStatus: null, amReason: null, pmStatus: null, pmReason: null, chatId: msg.chat.id, messageId: null }
     sessions.set(telegramId, session)
     const sent = await bot.sendMessage(msg.chat.id, 'Choose today status.', {

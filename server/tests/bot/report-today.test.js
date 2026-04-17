@@ -4,6 +4,10 @@ const { makeMsg, makeCallback, setupMocks } = require('./helpers')
 
 const USER_ID = 100
 
+// Pin date to a known weekday so weekend guards don't fire during tests
+beforeAll(() => jest.useFakeTimers({ now: new Date('2026-04-14T08:00:00') }))
+afterAll(() => jest.useRealTimers())
+
 describe('Report Today flows', () => {
   let bot, prisma, handleMessage, handleCallbackQuery
 
