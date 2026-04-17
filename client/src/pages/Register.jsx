@@ -5,21 +5,6 @@ import { useAuth } from '../hooks/useAuth'
 import { AuthError, AuthField, AuthLayout } from './auth/AuthLayout'
 import { AUTH_COLORS } from './auth/authTheme'
 
-const NOTES = [
-  {
-    title: 'Admin-owned workspace',
-    body: 'Each admin account owns its officers, attendance views, divisions, branches, and notification feed.',
-  },
-  {
-    title: 'Operational review first',
-    body: 'The workspace is structured around roster and attendance routines instead of generic back-office flows.',
-  },
-  {
-    title: 'Contained access',
-    body: 'Sessions and roster actions stay scoped to the signed-in admin account.',
-  },
-]
-
 export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
@@ -48,21 +33,11 @@ export default function Register() {
   }
 
   return (
-    <AuthLayout
-      eyebrow="Workspace setup"
-      title="Open a workspace."
-      description="Create the admin account that owns officers, attendance, and dashboard notifications."
-      notes={NOTES}
-      sideLabel="Admin"
-      formLabel="Officers • Attendance • Notifications"
-    >
+    <AuthLayout>
       <div className="rounded-[1.5rem] border px-5 py-6 md:px-7 md:py-7" style={{ borderColor: AUTH_COLORS.line, background: 'rgba(255,255,255,0.68)' }}>
-        <div className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: AUTH_COLORS.muted }}>
-          Create admin
-        </div>
-        <h2 className="mt-3 text-[2rem] font-semibold tracking-[-0.06em]">Create workspace</h2>
-        <p className="mt-2 text-sm leading-6" style={{ color: AUTH_COLORS.muted }}>
-          Register the admin account that will own this operational workspace.
+        <h2 className="text-[2rem] font-semibold tracking-[-0.06em]">Create workspace</h2>
+        <p className="mt-1.5 text-sm" style={{ color: AUTH_COLORS.muted }}>
+          Set up your admin account.
         </p>
 
         {error && (
@@ -122,7 +97,7 @@ export default function Register() {
         </form>
 
         <p className="mt-6 text-sm" style={{ color: AUTH_COLORS.muted }}>
-          Already have an account?{' '}
+          Have an account?{' '}
           <Link to="/login" className="font-medium" style={{ color: AUTH_COLORS.text }}>
             Sign in
           </Link>

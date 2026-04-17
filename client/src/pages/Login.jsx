@@ -5,21 +5,6 @@ import { useAuth } from '../hooks/useAuth'
 import { AuthError, AuthField, AuthLayout } from './auth/AuthLayout'
 import { AUTH_COLORS } from './auth/authTheme'
 
-const NOTES = [
-  {
-    title: 'Telegram-native reporting',
-    body: 'Officers report attendance from Telegram while admin work stays in the dashboard.',
-  },
-  {
-    title: 'Live roster updates',
-    body: 'Status events appear inside the dashboard as officers report or edit their availability.',
-  },
-  {
-    title: 'Focused operations view',
-    body: 'Roster, attendance, and notifications share one quieter administrative surface.',
-  },
-]
-
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -43,21 +28,11 @@ export default function Login() {
   }
 
   return (
-    <AuthLayout
-      eyebrow="Admin access"
-      title="Sign in."
-      description="Use your admin account to continue to the operations dashboard."
-      notes={NOTES}
-      sideLabel="Admin"
-      formLabel="Dashboard • Roster • Notifications"
-    >
+    <AuthLayout>
       <div className="rounded-[1.5rem] border px-5 py-6 md:px-7 md:py-7" style={{ borderColor: AUTH_COLORS.line, background: 'rgba(255,255,255,0.68)' }}>
-        <div className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: AUTH_COLORS.muted }}>
-          Admin access
-        </div>
-        <h2 className="mt-3 text-[2rem] font-semibold tracking-[-0.06em]">Continue to dashboard</h2>
-        <p className="mt-2 text-sm leading-6" style={{ color: AUTH_COLORS.muted }}>
-          Sign in with the admin account that owns this workspace.
+        <h2 className="text-[2rem] font-semibold tracking-[-0.06em]">Sign in</h2>
+        <p className="mt-1.5 text-sm" style={{ color: AUTH_COLORS.muted }}>
+          Admin access only.
         </p>
 
         {error && (
@@ -106,7 +81,7 @@ export default function Login() {
         </form>
 
         <p className="mt-6 text-sm" style={{ color: AUTH_COLORS.muted }}>
-          Need an admin account?{' '}
+          No account?{' '}
           <Link to="/register" className="font-medium" style={{ color: AUTH_COLORS.text }}>
             Register
           </Link>

@@ -149,15 +149,15 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-[100dvh] px-4 py-4 md:px-6 md:py-6" style={{ background: COLORS.bg, color: COLORS.text }}>
+    <div className="h-[100dvh] overflow-hidden px-4 py-4 md:px-6 md:py-6" style={{ background: COLORS.bg, color: COLORS.text }}>
 
       <MotionDiv
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-        className="mx-auto grid min-h-[calc(100dvh-2rem)] max-w-[1440px] grid-cols-1 gap-6 md:min-h-[calc(100dvh-3rem)] xl:grid-cols-[220px_minmax(0,1fr)]"
+        className="mx-auto grid h-full max-w-[1440px] grid-cols-1 gap-6 xl:grid-cols-[220px_minmax(0,1fr)]"
       >
-        <aside className="xl:pr-6 xl:border-r" style={{ borderColor: COLORS.line }}>
+        <aside className="xl:pr-6 xl:border-r xl:overflow-y-auto" style={{ borderColor: COLORS.line }}>
           <div className="flex h-full flex-col">
             <div className="pb-8 pt-4">
               <div className="text-[1.9rem] font-semibold leading-none tracking-[-0.07em]">Yappd</div>
@@ -210,7 +210,7 @@ export default function Dashboard() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.42, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-          className="min-w-0 h-full"
+          className="min-w-0 h-full min-h-0"
         >
           <div className="flex h-full flex-col">
             <header className="flex items-center justify-end pb-2">
@@ -291,7 +291,7 @@ export default function Dashboard() {
                 </div>
             </header>
 
-            <div className="flex-1 overflow-auto pt-4">
+            <div className="flex-1 min-h-0 overflow-y-auto pt-4">
               {activeNav === 'roster' && <OfficerList />}
               {activeNav === 'attendance' && <RosterView refreshToken={attendanceRefreshToken} />}
             </div>
