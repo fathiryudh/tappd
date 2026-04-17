@@ -226,10 +226,16 @@ export default function Dashboard() {
                   <button
                     key={item.id}
                     onClick={() => setActiveNav(item.id)}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors duration-200"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all duration-200"
                     style={{
                       background: isActive ? 'rgba(0,0,0,0.06)' : 'transparent',
                       color: isActive ? 'rgba(0,0,0,0.88)' : COLORS.muted,
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) e.currentTarget.style.background = 'rgba(0,0,0,0.04)'
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) e.currentTarget.style.background = 'transparent'
                     }}
                   >
                     <IconComponent size={18} weight={isActive ? 'fill' : 'regular'} />
@@ -247,8 +253,10 @@ export default function Dashboard() {
 
               <button
                 onClick={handleLogout}
-                className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors duration-200"
+                className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200"
                 style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = COLORS.soft }}
               >
                 <SignOut size={15} weight="regular" />
                 <span>Sign out</span>
@@ -268,11 +276,13 @@ export default function Dashboard() {
                 <div className="relative self-start" ref={panelRef}>
                   <button
                     onClick={() => setNotificationsOpen(open => !open)}
-                    className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors duration-200"
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200"
                     style={{
                       background: notificationsOpen ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
                       color: 'rgba(0,0,0,0.72)',
                     }}
+                    onMouseEnter={e => { if (!notificationsOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
+                    onMouseLeave={e => { if (!notificationsOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                   >
                     {notificationsOpen ? <X size={16} weight="regular" /> : <Bell size={16} weight="regular" />}
                     <span>{notificationState.unreadCount > 0 ? `${notificationState.unreadCount} unread` : 'Notifications'}</span>
@@ -298,8 +308,10 @@ export default function Dashboard() {
                             <button
                               onClick={handleMarkAllRead}
                               disabled={markingAllRead || notificationState.unreadCount === 0}
-                              className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-colors duration-200 disabled:opacity-45"
+                              className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-all duration-200 disabled:opacity-45"
                               style={{ background: COLORS.soft, color: COLORS.text }}
+                              onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = COLORS.soft }}
                             >
                               <Checks size={14} weight="light" />
                               {markingAllRead ? 'Marking…' : 'Mark all read'}
@@ -315,8 +327,10 @@ export default function Dashboard() {
                               notificationState.items.map(item => (
                                 <article
                                   key={item.id}
-                                  className="rounded-[1rem] border px-4 py-4"
+                                  className="rounded-[1rem] border px-4 py-4 transition-all duration-150"
                                   style={{ background: item.readAt ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.04)', borderColor: COLORS.line }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = item.readAt ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.04)' }}
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                       <div>
@@ -397,17 +411,23 @@ export default function Dashboard() {
             </MotionDiv>
           )}
         </AnimatePresence>
-        <button
-          onClick={() => setFabOpen(open => !open)}
-          className="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200"
-          style={{
-            background: fabOpen ? 'rgba(0,0,0,0.10)' : COLORS.brand,
-            color: fabOpen ? COLORS.text : '#FFFFFF',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
-          }}
+        <MotionDiv
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.93 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22 }}
         >
-          {fabOpen ? <X size={20} weight="bold" /> : <UserCircle size={22} weight="fill" />}
-        </button>
+          <button
+            onClick={() => setFabOpen(open => !open)}
+            className="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200"
+            style={{
+              background: fabOpen ? 'rgba(0,0,0,0.10)' : COLORS.brand,
+              color: fabOpen ? COLORS.text : '#FFFFFF',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+            }}
+          >
+            {fabOpen ? <X size={20} weight="bold" /> : <UserCircle size={22} weight="fill" />}
+          </button>
+        </MotionDiv>
       </div>
 
       <div className="pointer-events-none fixed bottom-4 right-4 z-30 flex w-[min(92vw,24rem)] flex-col gap-3">
