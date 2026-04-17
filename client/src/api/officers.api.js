@@ -8,9 +8,16 @@ import { unwrapResponse } from '../lib/http'
  */
 
 /**
+ * @param {{ divisionId?: string, branchId?: string }} [params]
  * @returns {Promise<Officer[]>}
  */
-export const fetchOfficers = () => axiosClient.get('/officers').then(unwrapResponse)
+export const fetchOfficers = (params = {}) => {
+  const query = new URLSearchParams()
+  if (params.divisionId) query.set('divisionId', params.divisionId)
+  if (params.branchId) query.set('branchId', params.branchId)
+  const qs = query.toString()
+  return axiosClient.get(`/officers${qs ? `?${qs}` : ''}`).then(unwrapResponse)
+}
 
 /**
  * @returns {Promise<OfficerFormOptions>}

@@ -12,8 +12,11 @@ import {
 } from '@phosphor-icons/react'
 import { useAuth } from '../hooks/useAuth'
 import { fetchNotifications, markAllNotificationsRead } from '../api/notifications.api'
+import { fetchOfficerFormOptions } from '../api/officers.api'
 import OfficerList from '../components/roster/OfficerList'
 import RosterView from '../components/roster/RosterView'
+
+const PINNED_FILTER_KEY = 'yappd_pinned_filter'
 
 const MotionDiv = motion.div
 const MotionAside = motion.aside
@@ -35,21 +38,39 @@ const COLORS = {
 }
 
 const NAV_ITEMS = [
-  { id: 'roster', icon: Users, label: 'Roster', eyebrow: 'Directory' },
   { id: 'attendance', icon: CalendarBlank, label: 'Attendance', eyebrow: 'Weekly view' },
+  { id: 'roster', icon: Users, label: 'Roster', eyebrow: 'Directory' },
 ]
 
 const toastLifetimeMs = 4200
 
 export default function Dashboard() {
-  const [activeNav, setActiveNav] = useState('roster')
+  const [activeNav, setActiveNav] = useState('attendance')
   const [attendanceRefreshToken, setAttendanceRefreshToken] = useState(0)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notificationState, setNotificationState] = useState({ items: [], unreadCount: 0 })
   const [loadingNotifications, setLoadingNotifications] = useState(true)
   const [markingAllRead, setMarkingAllRead] = useState(false)
   const [liveToasts, setLiveToasts] = useState([])
+  const [divisions, setDivisions] = useState([])
+  const [branches, setBranches] = useState([])
+  const [filter, setFilter] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PINNED_FILTER_KEY)
+      if (raw) return JSON.parse(raw)
+    } catch { /* ignore */ }
+    return { divisionId: '', branchId: '' }
+  })
+  const [pinnedFilter, setPinnedFilter] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PINNED_FILTER_KEY)
+      if (raw) return JSON.parse(raw)
+    } catch { /* ignore */ }
+    return null
+  })
+  const [fabOpen, setFabOpen] = useState(false)
   const panelRef = useRef(null)
+  const fabRef = useRef(null)
   const seenNotificationIdsRef = useRef(new Set())
   const toastTimersRef = useRef(new Map())
   const initializedRef = useRef(false)
@@ -129,6 +150,19 @@ export default function Dashboard() {
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [notificationsOpen])
 
+  useEffect(() => {
+    if (!fabOpen) return
+
+    const handlePointerDown = (event) => {
+      if (fabRef.current && !fabRef.current.contains(event.target)) {
+        setFabOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [fabOpen])
+
   const handleLogout = async () => {
     await logout()
     navigate('/login')
@@ -146,6 +180,23 @@ export default function Dashboard() {
     } finally {
       setMarkingAllRead(false)
     }
+  }
+
+  useEffect(() => {
+    fetchOfficerFormOptions().then((opts) => {
+      setDivisions(opts.divisions || [])
+      setBranches(opts.branches || [])
+    }).catch(() => {})
+  }, [])
+
+  const handlePin = () => {
+    localStorage.setItem(PINNED_FILTER_KEY, JSON.stringify(filter))
+    setPinnedFilter({ ...filter })
+  }
+
+  const handleUnpin = () => {
+    localStorage.removeItem(PINNED_FILTER_KEY)
+    setPinnedFilter(null)
   }
 
   return (
@@ -175,10 +226,16 @@ export default function Dashboard() {
                   <button
                     key={item.id}
                     onClick={() => setActiveNav(item.id)}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors duration-200"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all duration-200"
                     style={{
                       background: isActive ? 'rgba(0,0,0,0.06)' : 'transparent',
                       color: isActive ? 'rgba(0,0,0,0.88)' : COLORS.muted,
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) e.currentTarget.style.background = 'rgba(0,0,0,0.04)'
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) e.currentTarget.style.background = 'transparent'
                     }}
                   >
                     <IconComponent size={18} weight={isActive ? 'fill' : 'regular'} />
@@ -188,7 +245,7 @@ export default function Dashboard() {
               })}
             </nav>
 
-            <div className="mt-8 pt-6 xl:mt-auto xl:border-t" style={{ borderColor: COLORS.line }}>
+            <div className="mt-8 hidden pt-6 xl:mt-auto xl:block xl:border-t" style={{ borderColor: COLORS.line }}>
               <div className="flex items-center gap-3">
                 <UserCircle size={18} weight="regular" style={{ color: COLORS.muted }} />
                 <div className="min-w-0 truncate text-sm">{user?.email || 'Admin user'}</div>
@@ -196,8 +253,10 @@ export default function Dashboard() {
 
               <button
                 onClick={handleLogout}
-                className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors duration-200"
+                className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200"
                 style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = COLORS.soft }}
               >
                 <SignOut size={15} weight="regular" />
                 <span>Sign out</span>
@@ -217,11 +276,13 @@ export default function Dashboard() {
                 <div className="relative self-start" ref={panelRef}>
                   <button
                     onClick={() => setNotificationsOpen(open => !open)}
-                    className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors duration-200"
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200"
                     style={{
                       background: notificationsOpen ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
                       color: 'rgba(0,0,0,0.72)',
                     }}
+                    onMouseEnter={e => { if (!notificationsOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
+                    onMouseLeave={e => { if (!notificationsOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
                   >
                     {notificationsOpen ? <X size={16} weight="regular" /> : <Bell size={16} weight="regular" />}
                     <span>{notificationState.unreadCount > 0 ? `${notificationState.unreadCount} unread` : 'Notifications'}</span>
@@ -247,8 +308,10 @@ export default function Dashboard() {
                             <button
                               onClick={handleMarkAllRead}
                               disabled={markingAllRead || notificationState.unreadCount === 0}
-                              className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-colors duration-200 disabled:opacity-45"
+                              className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-all duration-200 disabled:opacity-45"
                               style={{ background: COLORS.soft, color: COLORS.text }}
+                              onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = COLORS.soft }}
                             >
                               <Checks size={14} weight="light" />
                               {markingAllRead ? 'Marking…' : 'Mark all read'}
@@ -264,8 +327,10 @@ export default function Dashboard() {
                               notificationState.items.map(item => (
                                 <article
                                   key={item.id}
-                                  className="rounded-[1rem] border px-4 py-4"
+                                  className="rounded-[1rem] border px-4 py-4 transition-all duration-150"
                                   style={{ background: item.readAt ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.04)', borderColor: COLORS.line }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = item.readAt ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.04)' }}
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                       <div>
@@ -292,12 +357,78 @@ export default function Dashboard() {
             </header>
 
             <div className="flex-1 min-h-0 overflow-y-auto pt-4">
-              {activeNav === 'roster' && <OfficerList />}
-              {activeNav === 'attendance' && <RosterView refreshToken={attendanceRefreshToken} />}
+              {activeNav === 'roster' && (
+                <OfficerList
+                  filter={filter}
+                  onFilterChange={setFilter}
+                  divisions={divisions}
+                  branches={branches}
+                  pinnedFilter={pinnedFilter}
+                  onPin={handlePin}
+                  onUnpin={handleUnpin}
+                />
+              )}
+              {activeNav === 'attendance' && (
+                <RosterView
+                  refreshToken={attendanceRefreshToken}
+                  filter={filter}
+                  onFilterChange={setFilter}
+                  divisions={divisions}
+                  branches={branches}
+                  pinnedFilter={pinnedFilter}
+                  onPin={handlePin}
+                  onUnpin={handleUnpin}
+                />
+              )}
             </div>
           </div>
         </MotionMain>
       </MotionDiv>
+
+      <div className="fixed bottom-6 right-4 z-40 xl:hidden" ref={fabRef}>
+        <AnimatePresence>
+          {fabOpen && (
+            <MotionDiv
+              initial={{ opacity: 0, y: 12, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute bottom-14 right-0 mb-2 w-64 rounded-2xl border bg-white p-4"
+              style={{ borderColor: COLORS.line, boxShadow: '0 12px 30px rgba(0,0,0,0.10)' }}
+            >
+              <div className="flex items-center gap-3">
+                <UserCircle size={18} weight="regular" style={{ color: COLORS.muted }} />
+                <div className="min-w-0 truncate text-sm">{user?.email || 'Admin user'}</div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition-colors duration-200"
+                style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
+              >
+                <SignOut size={15} weight="regular" />
+                <span>Sign out</span>
+              </button>
+            </MotionDiv>
+          )}
+        </AnimatePresence>
+        <MotionDiv
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.93 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+        >
+          <button
+            onClick={() => setFabOpen(open => !open)}
+            className="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200"
+            style={{
+              background: fabOpen ? 'rgba(0,0,0,0.10)' : COLORS.brand,
+              color: fabOpen ? COLORS.text : '#FFFFFF',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+            }}
+          >
+            {fabOpen ? <X size={20} weight="bold" /> : <UserCircle size={22} weight="fill" />}
+          </button>
+        </MotionDiv>
+      </div>
 
       <div className="pointer-events-none fixed bottom-4 right-4 z-30 flex w-[min(92vw,24rem)] flex-col gap-3">
         <AnimatePresence initial={false}>

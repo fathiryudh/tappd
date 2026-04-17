@@ -7,6 +7,7 @@ import {
   RosterLocationBadge,
   RosterShell,
 } from './RosterPrimitives'
+import DivisionBranchFilter from './DivisionBranchFilter'
 import { ROSTER_COLORS as COLORS, getRevealStyle } from './rosterTheme'
 import { buildOfficerPayload, createEmptyOfficerForm } from '../../lib/officerForm'
 
@@ -28,7 +29,15 @@ function updateField(setForm, field) {
 const CONTROL_CLASS_NAME = 'w-full rounded-[1rem] border border-transparent px-4 py-3 text-sm transition-colors duration-200 focus:outline-none'
 const CONTROL_STYLE = { color: COLORS.text, background: COLORS.soft }
 
-export default function OfficerList() {
+export default function OfficerList({
+  filter = { divisionId: '', branchId: '' },
+  onFilterChange,
+  divisions = [],
+  branches = [],
+  pinnedFilter,
+  onPin,
+  onUnpin,
+}) {
   const [officers, setOfficers] = useState([])
   const [divisionOptions, setDivisionOptions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -62,22 +71,35 @@ export default function OfficerList() {
   }
 
   useEffect(() => {
+    fetchOfficerFormOptions()
+      .then(optionData => setDivisionOptions(optionData.divisions || []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    let stale = false
+    setLoading(true)
+    setRevealed(false)
+
     const load = async () => {
       try {
-        const [officerData, optionData] = await Promise.all([fetchOfficers(), fetchOfficerFormOptions()])
+        const officerData = await fetchOfficers({ divisionId: filter.divisionId, branchId: filter.branchId })
+        if (stale) return
         setOfficers(officerData)
-        setDivisionOptions(optionData.divisions || [])
         setError(null)
       } catch (err) {
+        if (stale) return
         setError(getRequestErrorMessage(err, 'Could not load officers.'))
       } finally {
+        if (stale) return
         setLoading(false)
         setTimeout(() => setRevealed(true), 40)
       }
     }
 
     load()
-  }, [])
+    return () => { stale = true }
+  }, [filter.divisionId, filter.branchId])
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -112,6 +134,20 @@ export default function OfficerList() {
           <RosterLocationBadge />
         </div>
 
+        {onFilterChange && (
+          <div className="mb-5">
+            <DivisionBranchFilter
+              divisions={divisions}
+              branches={branches}
+              filter={filter}
+              onFilterChange={onFilterChange}
+              pinnedFilter={pinnedFilter}
+              onPin={onPin}
+              onUnpin={onUnpin}
+            />
+          </div>
+        )}
+
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1
@@ -129,8 +165,10 @@ export default function OfficerList() {
 
           <button
             onClick={toggleForm}
-            className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-colors duration-200"
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-all duration-200"
             style={{ background: COLORS.soft, color: COLORS.text }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.09)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = COLORS.soft }}
           >
             <Plus size={15} weight="bold" />
             <span>{showForm ? 'Close form' : 'Add officer'}</span>
@@ -197,16 +235,20 @@ export default function OfficerList() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center rounded-full px-5 py-3 text-sm font-medium text-white transition-opacity duration-200 disabled:opacity-40"
+                className="inline-flex items-center rounded-full px-5 py-3 text-sm font-medium text-white transition-all duration-200 disabled:opacity-40"
                 style={{ background: COLORS.info }}
+                onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.opacity = '0.85' }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
               >
                 {saving ? 'Adding…' : 'Add officer'}
               </button>
               <button
                 type="button"
                 onClick={closeForm}
-                className="rounded-full px-5 py-3 text-sm font-medium transition-colors duration-200"
+                className="rounded-full px-5 py-3 text-sm font-medium transition-all duration-200"
                 style={{ background: COLORS.soft, color: COLORS.muted }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.09)'; e.currentTarget.style.color = COLORS.text }}
+                onMouseLeave={e => { e.currentTarget.style.background = COLORS.soft; e.currentTarget.style.color = COLORS.muted }}
               >
                 Cancel
               </button>

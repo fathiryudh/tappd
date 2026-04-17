@@ -6,6 +6,7 @@ import {
   RosterLocationBadge,
   RosterShell,
 } from './RosterPrimitives'
+import DivisionBranchFilter from './DivisionBranchFilter'
 import { ROSTER_COLORS as BASE_COLORS, getRevealStyle } from './rosterTheme'
 
 const COLORS = {
@@ -133,7 +134,16 @@ function getRowRevealStyle(revealed, idx) {
   return getRevealStyle(revealed, { distance: 8, delay: idx * 28, duration: 500 })
 }
 
-export default function RosterView({ refreshToken = 0 }) {
+export default function RosterView({
+  refreshToken = 0,
+  filter = { divisionId: '', branchId: '' },
+  onFilterChange,
+  divisions = [],
+  branches = [],
+  pinnedFilter,
+  onPin,
+  onUnpin,
+}) {
   const now = new Date()
   const todayISO = localISODate(now)
   const [weekStart, setWeekStart] = useState(() => getMondayOfWeek(todayISO))
@@ -143,6 +153,7 @@ export default function RosterView({ refreshToken = 0 }) {
   const [error, setError] = useState(null)
   const [revealed, setRevealed] = useState(false)
   const isMountedRef = useRef(true)
+  const fetchDataRef = useRef(null)
 
   const week = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i))
   const isCurrentWeek = week.includes(todayISO)
@@ -156,7 +167,10 @@ export default function RosterView({ refreshToken = 0 }) {
     }
 
     try {
-      const res = await fetch(`/weekly-roster?week=${weekStart}`)
+      const params = new URLSearchParams({ week: weekStart })
+      if (filter.divisionId) params.set('divisionId', filter.divisionId)
+      if (filter.branchId) params.set('branchId', filter.branchId)
+      const res = await fetch(`/weekly-roster?${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
       if (!isMountedRef.current) return
@@ -170,7 +184,11 @@ export default function RosterView({ refreshToken = 0 }) {
       if (silent) setRefreshing(false)
       else setLoading(false)
     }
-  }, [weekStart])
+  }, [weekStart, filter.divisionId, filter.branchId])
+
+  useEffect(() => {
+    fetchDataRef.current = fetchData
+  }, [fetchData])
 
   useEffect(() => {
     fetchData()
@@ -187,9 +205,9 @@ export default function RosterView({ refreshToken = 0 }) {
 
   useEffect(() => {
     if (refreshToken > 0) {
-      fetchData({ silent: true })
+      fetchDataRef.current?.({ silent: true })
     }
-  }, [fetchData, refreshToken])
+  }, [refreshToken])
 
   useEffect(() => {
     if (!loading) {
@@ -221,6 +239,20 @@ export default function RosterView({ refreshToken = 0 }) {
         <div className="mb-5">
           <RosterLocationBadge indicatorColor={isCurrentWeek ? COLORS.success : 'rgba(15,23,42,0.42)'} />
         </div>
+
+        {onFilterChange && (
+          <div className="mb-5">
+            <DivisionBranchFilter
+              divisions={divisions}
+              branches={branches}
+              filter={filter}
+              onFilterChange={onFilterChange}
+              pinnedFilter={pinnedFilter}
+              onPin={onPin}
+              onUnpin={onUnpin}
+            />
+          </div>
+        )}
 
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>

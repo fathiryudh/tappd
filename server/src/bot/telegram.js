@@ -184,7 +184,7 @@ function replyKeyboardMarkup() {
     keyboard: [
       [{ text: 'Report Today' }, { text: 'My Status' }],
       [{ text: 'Plan This Week' }, { text: 'Plan Next Week' }],
-      [{ text: 'View Roster' }],
+      [{ text: 'View Roster' }, { text: 'Edit Profile' }],
     ],
     resize_keyboard: true,
     persistent: true,
@@ -1178,7 +1178,7 @@ async function handleMessage(msg) {
 
   if (pendingDeletion.has(telegramId)) {
     pendingDeletion.delete(telegramId)
-    if (rawMessage === 'YES') {
+    if (rawMessage.toUpperCase() === 'YES') {
       const officerToDelete = await prisma.officer.findUnique({ where: { telegramId } })
       if (officerToDelete) {
         await prisma.officer.delete({ where: { telegramId } })
@@ -1273,6 +1273,11 @@ async function handleMessage(msg) {
 
   if (rawMessage === 'View Roster') {
     await handleRosterCommand(msg)
+    return
+  }
+
+  if (rawMessage === 'Edit Profile') {
+    await handleEditProfileCommand(msg)
     return
   }
 
