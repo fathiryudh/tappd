@@ -32,7 +32,7 @@ client/.env.*
 .claude/settings.local.json
 
 # Database/runtime artifacts
-server/prisma/yappd.db
+server/prisma/tappd.db
 server/prisma/*.db
 server/prisma/*.sqlite
 server/prisma/*.sqlite3

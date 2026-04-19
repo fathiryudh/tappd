@@ -34,7 +34,7 @@
   - `cd server && node prisma/seed-divisions.js`
   - `cd server && node scripts/seed-demo.js`
   - `cd server && node scripts/reassign-admin.js <fromAdminId> <toAdminId>`
-  - `node server/scripts/migrate-sqlite-to-supabase.js server/prisma/yappd.db`
+  - `node server/scripts/migrate-sqlite-to-supabase.js server/prisma/tappd.db`
 
 ## Git Workflow
 - `main` is the production branch. Do not do casual work directly on `main`.

@@ -16,7 +16,7 @@ import { fetchOfficerFormOptions } from '../api/officers.api'
 import OfficerList from '../components/roster/OfficerList'
 import RosterView from '../components/roster/RosterView'
 
-const PINNED_FILTER_KEY = 'yappd_pinned_filter'
+const PINNED_FILTER_KEY = 'tappd_pinned_filter'
 
 const MotionDiv = motion.div
 const MotionAside = motion.aside
@@ -211,7 +211,7 @@ export default function Dashboard() {
         <aside className="xl:pr-6 xl:border-r xl:overflow-y-auto" style={{ borderColor: COLORS.line }}>
           <div className="flex h-full flex-col">
             <div className="pb-8 pt-4">
-              <div className="text-[1.9rem] font-semibold leading-none tracking-[-0.07em]">Yappd</div>
+              <div className="text-[1.9rem] font-semibold leading-none tracking-[-0.07em]">Tappd</div>
               <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em]" style={{ color: COLORS.muted }}>
                 Admin
               </div>

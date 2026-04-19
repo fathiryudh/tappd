@@ -41,7 +41,7 @@ async function sendDailyDigest(digestEmail) {
   })
 
   const textBody = [
-    `Yappd Daily Availability Report`,
+    `Tappd Daily Availability Report`,
     `${dateStr}`,
     ``,
     ...rows.map(r => r.reasonStr ? `${r.label} ${r.displayName} ${r.reasonStr}` : `${r.label} ${r.displayName}`),
@@ -64,14 +64,14 @@ async function sendDailyDigest(digestEmail) {
           </tr>`).join('')}
       </table>
       <p style="color:#71717a;font-size:13px;margin-top:12px">IN: ${countIn} · OUT: ${countOut} · Unconfirmed: ${countUnconfirmed}</p>
-      <p style="color:#a1a1aa;font-size:12px;margin-top:16px">Sent by Yappd</p>
+      <p style="color:#a1a1aa;font-size:12px;margin-top:16px">Sent by Tappd</p>
     </div>
   `
 
   await transporter.sendMail({
-    from: `Yappd <${process.env.SMTP_USER}>`,
+    from: `Tappd <${process.env.SMTP_USER}>`,
     to: digestEmail,
-    subject: `Yappd Daily Roster — ${dateStr} (${countIn}/${officers.length} in)`,
+    subject: `Tappd Daily Roster — ${dateStr} (${countIn}/${officers.length} in)`,
     text: textBody,
     html: htmlBody,
   })

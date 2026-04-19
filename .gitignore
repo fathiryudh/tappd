@@ -5,7 +5,7 @@ server/generated
 *.log
 .DS_Store
 .worktrees/
-server/prisma/yappd.db
+server/prisma/tappd.db
 .agents/
 docs/superpowers/
 .claude/

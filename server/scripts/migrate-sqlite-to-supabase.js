@@ -3,7 +3,7 @@ const path = require('path')
 const { Client } = require('pg')
 
 const connectionString = process.env.DATABASE_URL
-const sqliteDbPath = process.argv[2] || path.join(__dirname, '..', 'prisma', 'yappd.db')
+const sqliteDbPath = process.argv[2] || path.join(__dirname, '..', 'prisma', 'tappd.db')
 
 if (!connectionString) {
   console.error('DATABASE_URL is required')

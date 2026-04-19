@@ -1,7 +1,7 @@
 {
-  "name": "yappd-server",
+  "name": "tappd-server",
   "version": "1.0.0",
-  "description": "Yappd API server",
+  "description": "Tappd API server",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",

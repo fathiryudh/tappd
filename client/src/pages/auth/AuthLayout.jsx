@@ -27,7 +27,7 @@ export function AuthLayout({ children }) {
                 className="text-[2.8rem] sm:text-[3.5rem] xl:text-[4rem] 2xl:text-[5.5rem] font-semibold leading-none tracking-[-0.08em]"
                 style={{ color: AUTH_COLORS.text }}
               >
-                Yappd
+                Tappd
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0 }}
@@ -36,7 +36,7 @@ export function AuthLayout({ children }) {
                 className="mt-4 text-sm 2xl:text-base leading-6 2xl:leading-7"
                 style={{ color: AUTH_COLORS.muted, maxWidth: '32ch' }}
               >
-                Stop chasing attendance. Yappd lets officers report instantly via Telegram—giving admins everything they need in one place:{' '}
+                Stop chasing attendance. Tappd lets officers report instantly via Telegram—giving admins everything they need in one place:{' '}
                 <Highlight>a live dashboard, weekly tracking, and full roster control.</Highlight>
               </motion.p>
             </div>

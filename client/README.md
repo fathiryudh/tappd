@@ -1,6 +1,6 @@
 # Client
 
-React 19 + Vite admin client for Yappd.
+React 19 + Vite admin client for Tappd.
 
 ## Scripts
 

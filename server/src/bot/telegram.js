@@ -1438,7 +1438,7 @@ async function handleMessage(msg) {
 async function promptVerification(chatId) {
   await bot.sendMessage(
     chatId,
-    "Welcome to Yappd! To verify your identity, please share your phone number.",
+    "Welcome to Tappd! To verify your identity, please share your phone number.",
     { reply_markup: contactKeyboard() }
   )
 }

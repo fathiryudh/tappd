@@ -1,4 +1,4 @@
-# Yappd
+# Tappd
 
 Attendance reporting system for SCDF 2nd Division HQ. Officers report daily attendance through a Telegram bot. Admins view and manage the roster from a web dashboard.
 

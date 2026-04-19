@@ -55,7 +55,7 @@ body {
   background: rgba(31, 105, 255, 0.14);
 }
 
-@keyframes yappd-scatter {
+@keyframes tappd-scatter {
   0%   { transform: translate(0, 0) scale(1); opacity: 1; }
   100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
 }

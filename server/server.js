@@ -9,7 +9,7 @@ const { sendDailyDigest, getUnreportedOfficers } = require('./src/bot/digest')
 const PORT = process.env.PORT || 8000
 
 app.listen(PORT, async () => {
-  console.log(`Yappd server running on port ${PORT}`)
+  console.log(`Tappd server running on port ${PORT}`)
 
   // Register Telegram webhook on startup (only if public URL is configured)
   if (process.env.WEBHOOK_BASE_URL && process.env.TELEGRAM_BOT_TOKEN) {
