@@ -1560,6 +1560,17 @@ async function handleCallbackQuery(query) {
     return
   }
 
+  if (data === 'holiday:confirm') {
+    const holidaySession = holidaySessions.get(telegramId)
+    if (!holidaySession || holidaySession.step !== 'confirm') return
+    holidaySessions.delete(telegramId)
+    const officerForHoliday = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officerForHoliday) return
+    const records = holidaySession.days.map(date => ({ date, status: 'OUT', reason: 'OVL', notes: '' }))
+    await storeAndConfirm(records, officerForHoliday, chatId, 'holiday_confirm', null)
+    return
+  }
+
   if (data === 'edit_today') {
     const officerForEdit = await prisma.officer.findUnique({ where: { telegramId } })
     if (!officerForEdit) {

@@ -285,3 +285,52 @@ describe('/holiday guided flow', () => {
     expect(lastMsg).toContain('tap')
   })
 })
+
+describe('/holiday confirm and cancel callbacks', () => {
+  let bot, prisma, handlers
+
+  beforeEach(() => {
+    jest.useFakeTimers({ now: new Date('2026-04-21T08:00:00') })
+    ;({ bot, prisma, handlers } = setupMocks())
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  test('holiday:confirm saves all OVL records and sends summary', async () => {
+    // Drive session to confirm step (21/4 Mon to 24/4 Thu = 4 weekdays)
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '21/4'))
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '24/4'))
+    prisma.availability.upsert.mockClear()
+    bot.sendMessage.mockClear()
+
+    await handlers.handleCallbackQuery(makeCallback(MSG_USER_ID, 1, 'holiday:confirm'))
+
+    expect(prisma.availability.upsert).toHaveBeenCalledTimes(4)
+    expect(prisma.availability.upsert.mock.calls[0][0].create).toMatchObject({
+      status: 'OUT',
+      reason: 'OVL',
+    })
+    expect(bot.sendMessage).toHaveBeenCalled()
+  })
+
+  test('holiday:cancel clears session and confirms cancellation', async () => {
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+    bot.editMessageText.mockClear()
+
+    await handlers.handleCallbackQuery(makeCallback(MSG_USER_ID, 1, 'holiday:cancel'))
+
+    expect(prisma.availability.upsert).not.toHaveBeenCalled()
+    const lastCall = bot.editMessageText.mock.calls[bot.editMessageText.mock.calls.length - 1]
+    expect(lastCall[0]).toMatch(/cancel/i)
+  })
+
+  test('holiday:confirm with no session is a no-op', async () => {
+    // No session active — should not throw or save anything
+    await handlers.handleCallbackQuery(makeCallback(MSG_USER_ID, 1, 'holiday:confirm'))
+
+    expect(prisma.availability.upsert).not.toHaveBeenCalled()
+  })
+})
