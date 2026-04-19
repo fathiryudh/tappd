@@ -193,6 +193,7 @@ function setupMocks(officerOverrides = {}) {
       upsert: jest.fn().mockResolvedValue({}),
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     division: {
       findMany: jest.fn().mockResolvedValue([

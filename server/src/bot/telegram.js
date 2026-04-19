@@ -1,6 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api')
 const prisma = require('../config/prisma')
-const { expandRecords, keywordMatch, multiDayMatch, dateRangeMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput, parseSingleDate, expandWeekdays } = require('./parser')
+const { expandRecords, keywordMatch, multiDayMatch, dateRangeMatch, cancelRangeMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput, parseSingleDate, expandWeekdays } = require('./parser')
 const { normalizePhone } = require('../utils/phone')
 
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN)
@@ -1281,6 +1281,28 @@ async function handleMessage(msg) {
     } else {
       await bot.sendMessage(chatId, "Deletion cancelled.", { reply_markup: replyKeyboardMarkup() })
     }
+    return
+  }
+
+  const cancelDays = cancelRangeMatch(rawMessage, todayISO)
+  if (cancelDays) {
+    const officer = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officer) { await promptVerification(chatId); return }
+    if (officer.role === 'NSF') { await bot.sendMessage(chatId, 'NSFs cannot log attendance. Use /roster to view the roster.'); return }
+    await prisma.availability.deleteMany({
+      where: {
+        officerId: officer.id,
+        date: { in: cancelDays.map(d => new Date(d + 'T00:00:00')) },
+      },
+    })
+    const n = cancelDays.length
+    const startFmt = fmtDateShort(cancelDays[0])
+    const endFmt = fmtDateShort(cancelDays[cancelDays.length - 1])
+    await bot.sendMessage(
+      chatId,
+      `Cancelled ${n} day${n !== 1 ? 's' : ''} of leave (${startFmt} – ${endFmt}). Those days are now unconfirmed.`,
+      { reply_markup: replyKeyboardMarkup() }
+    )
     return
   }
 

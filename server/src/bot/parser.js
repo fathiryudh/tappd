@@ -323,4 +323,36 @@ function dateRangeMatch(raw, todayISO) {
   return days.map(date => ({ date, status: statusInfo.status, reason: statusInfo.reason, notes: '' }))
 }
 
-module.exports = { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput, parseSingleDate, expandWeekdays, dateRangeMatch }
+/**
+ * Match "cancel <startDate> to <endDate>" and return the weekday ISO dates to delete.
+ * Returns array of ISO date strings, or null if no match.
+ * @param {string} raw
+ * @param {string} todayISO
+ * @returns {string[]|null}
+ */
+function cancelRangeMatch(raw, todayISO) {
+  const lower = raw.toLowerCase().trim()
+  if (!lower.startsWith('cancel ')) return null
+
+  const rest = lower.slice(7).trim() // everything after "cancel "
+  const toIdx = rest.indexOf(' to ')
+  if (toIdx === -1) return null
+
+  const startStr = rest.slice(0, toIdx).trim()
+  const endStr = rest.slice(toIdx + 4).trim()
+
+  const startISO = parseSingleDate(startStr, todayISO)
+  if (!startISO) return null
+
+  const endISO = parseSingleDate(endStr, todayISO)
+  if (!endISO) return null
+
+  if (endISO < startISO) return null
+
+  const days = expandWeekdays(startISO, endISO)
+  if (days === null || days.length === 0) return null
+
+  return days
+}
+
+module.exports = { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput, parseSingleDate, expandWeekdays, dateRangeMatch, cancelRangeMatch }
