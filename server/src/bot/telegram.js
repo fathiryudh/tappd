@@ -9,6 +9,9 @@ if (process.env.NODE_ENV !== 'test') {
   setTimeout(() => {
     bot.setMyCommands([
       { command: 'start',       description: 'Register or view your profile' },
+      { command: 'report',      description: 'Log attendance for today' },
+      { command: 'status',      description: "Check today's attendance status" },
+      { command: 'holiday',     description: 'Mark yourself OVL for a date range' },
       { command: 'roster',      description: "View today's attendance roster" },
       { command: 'editprofile', description: 'Edit your profile (name, rank, division, branch, phone)' },
       { command: 'deregister',  description: 'Remove your profile and attendance history' },
