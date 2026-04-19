@@ -238,7 +238,10 @@ function parseSingleDate(str, todayISO) {
     const month = parseInt(slashMatch[2], 10)
     const year = slashMatch[3] ? parseInt(slashMatch[3], 10) : new Date(todayISO + 'T00:00:00').getFullYear()
     if (month < 1 || month > 12 || day < 1 || day > 31) return null
-    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const isoStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const dt = new Date(isoStr + 'T00:00:00')
+    if (dt.getMonth() + 1 !== month) return null  // e.g. Feb 31 rolls over
+    return isoStr
   }
 
   // Named month format: "21 apr", "21 april", "21 apr 2026"
@@ -254,7 +257,10 @@ function parseSingleDate(str, todayISO) {
           if (!isNaN(possibleYear) && possibleYear > 2020) year = possibleYear
         }
         if (dayNum < 1 || dayNum > 31) return null
-        return `${year}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+        const isoStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+        const dt = new Date(isoStr + 'T00:00:00')
+        if (dt.getMonth() + 1 !== monthNum) return null  // e.g. Feb 31 rolls over
+        return isoStr
       }
     }
   }
@@ -273,7 +279,7 @@ function expandWeekdays(startISO, endISO) {
       const m = String(current.getMonth() + 1).padStart(2, '0')
       const d = String(current.getDate()).padStart(2, '0')
       result.push(`${y}-${m}-${d}`)
-      if (result.length > 60) return result // signal overflow to caller
+      if (result.length > 60) return null // signal overflow to caller
     }
     current.setDate(current.getDate() + 1)
   }

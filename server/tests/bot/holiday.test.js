@@ -33,6 +33,14 @@ describe('parseSingleDate', () => {
     expect(parseSingleDate('21 APR', TODAY)).toBe('2026-04-21')
   })
 
+  test('named month with explicit year "21 apr 2026"', () => {
+    expect(parseSingleDate('21 apr 2026', TODAY)).toBe('2026-04-21')
+  })
+
+  test('invalid calendar date "31/2" returns null', () => {
+    expect(parseSingleDate('31/2', TODAY)).toBeNull()
+  })
+
   test('invalid string returns null', () => {
     expect(parseSingleDate('notadate', TODAY)).toBeNull()
   })
@@ -67,9 +75,7 @@ describe('expandWeekdays', () => {
     expect(expandWeekdays('2026-04-25', '2026-04-25')).toEqual([])
   })
 
-  test('caps at 61 entries for very long ranges', () => {
-    const days = expandWeekdays('2026-01-01', '2026-12-31')
-    expect(days.length).toBeGreaterThan(60)
-    expect(days.length).toBeLessThanOrEqual(61)
+  test('returns null for ranges over 60 weekdays', () => {
+    expect(expandWeekdays('2026-01-01', '2026-12-31')).toBeNull()
   })
 })
