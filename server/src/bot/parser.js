@@ -286,4 +286,41 @@ function expandWeekdays(startISO, endISO) {
   return result
 }
 
-module.exports = { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput, parseSingleDate, expandWeekdays }
+/**
+ * Match free-text range input: "<reason> <startDate> to <endDate>"
+ * Returns an array of OUT records for each weekday in the range, or null if no match.
+ * @param {string} raw
+ * @param {string} todayISO
+ * @returns {Array<{date:string,status:string,reason:string,notes:string}>|null}
+ */
+function dateRangeMatch(raw, todayISO) {
+  const lower = raw.toLowerCase().trim()
+
+  const toIdx = lower.indexOf(' to ')
+  if (toIdx === -1) return null
+
+  const left = lower.slice(0, toIdx).trim()   // e.g. "ovl 21/4"
+  const right = lower.slice(toIdx + 4).trim() // e.g. "30/4"
+
+  // Left must be: <reason_token> <date_string>
+  const leftTokens = left.split(/\s+/)
+  if (leftTokens.length < 2) return null
+
+  const statusInfo = parseStatusToken(leftTokens[0])
+  if (!statusInfo) return null
+
+  const startISO = parseSingleDate(leftTokens.slice(1).join(' '), todayISO)
+  if (!startISO) return null
+
+  const endISO = parseSingleDate(right, todayISO)
+  if (!endISO) return null
+
+  if (endISO < startISO) return null
+
+  const days = expandWeekdays(startISO, endISO)
+  if (days === null || days.length === 0) return null
+
+  return days.map(date => ({ date, status: statusInfo.status, reason: statusInfo.reason, notes: '' }))
+}
+
+module.exports = { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput, parseSingleDate, expandWeekdays, dateRangeMatch }

@@ -79,3 +79,67 @@ describe('expandWeekdays', () => {
     expect(expandWeekdays('2026-01-01', '2026-12-31')).toBeNull()
   })
 })
+
+describe('dateRangeMatch', () => {
+  const TODAY = '2026-04-21'
+
+  test('ovl 21/4 to 30/4 → OUT(OVL) for all weekdays', () => {
+    const records = dateRangeMatch('ovl 21/4 to 30/4', TODAY)
+    expect(records).not.toBeNull()
+    // 21 Apr (Mon) to 30 Apr (Thu) = 21,22,23,24,27,28,29,30 → 8 weekdays
+    expect(records).toHaveLength(8)
+    expect(records[0]).toEqual({ date: '2026-04-21', status: 'OUT', reason: 'OVL', notes: '' })
+    expect(records.every(r => r.status === 'OUT' && r.reason === 'OVL')).toBe(true)
+  })
+
+  test('vl 5 may to 9 may → OUT(VL) Tue–Fri that week (9 May is Sat)', () => {
+    const records = dateRangeMatch('vl 5 may to 9 may', TODAY)
+    expect(records).not.toBeNull()
+    // 5 May (Tue), 6 May (Wed), 7 May (Thu), 8 May (Fri) → 4 weekdays (9 May is Sat)
+    expect(records).toHaveLength(4)
+    expect(records[0]).toEqual({ date: '2026-05-05', status: 'OUT', reason: 'VL', notes: '' })
+    expect(records[3]).toEqual({ date: '2026-05-08', status: 'OUT', reason: 'VL', notes: '' })
+  })
+
+  test('mc 21/4 to 25/4 → OUT(MC) four weekdays (25 Apr is Sat)', () => {
+    const records = dateRangeMatch('mc 21/4 to 25/4', TODAY)
+    expect(records).not.toBeNull()
+    // 21 (Mon), 22 (Tue), 23 (Wed), 24 (Thu) → 4 weekdays (25 Apr is Sat)
+    expect(records).toHaveLength(4)
+    expect(records.every(r => r.reason === 'MC')).toBe(true)
+  })
+
+  test('wfh 28/4 to 1/5 → spans month boundary correctly', () => {
+    const records = dateRangeMatch('wfh 28/4 to 1/5', TODAY)
+    expect(records).not.toBeNull()
+    // 28 Apr (Tue), 29 Apr (Wed), 30 Apr (Thu), 1 May (Fri) → 4 weekdays
+    expect(records).toHaveLength(4)
+    expect(records[3]).toEqual({ date: '2026-05-01', status: 'OUT', reason: 'WFH', notes: '' })
+  })
+
+  test('case insensitive: OVL 21/4 to 30/4', () => {
+    const records = dateRangeMatch('OVL 21/4 to 30/4', TODAY)
+    expect(records).not.toBeNull()
+    expect(records).toHaveLength(8)
+  })
+
+  test('end before start → returns null', () => {
+    expect(dateRangeMatch('ovl 30/4 to 21/4', TODAY)).toBeNull()
+  })
+
+  test('unknown reason → returns null', () => {
+    expect(dateRangeMatch('holiday 21/4 to 30/4', TODAY)).toBeNull()
+  })
+
+  test('no "to" keyword → returns null', () => {
+    expect(dateRangeMatch('ovl 21/4', TODAY)).toBeNull()
+  })
+
+  test('range > 60 weekdays → returns null', () => {
+    expect(dateRangeMatch('ovl 1/1 to 30/6', TODAY)).toBeNull()
+  })
+
+  test('plain "ovl" (no range) → returns null', () => {
+    expect(dateRangeMatch('ovl', TODAY)).toBeNull()
+  })
+})
