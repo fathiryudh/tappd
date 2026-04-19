@@ -200,68 +200,66 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-[100dvh] overflow-hidden px-4 py-4 md:px-6 md:py-6" style={{ background: COLORS.bg, color: COLORS.text }}>
+    <div className="h-[100dvh] overflow-hidden" style={{ background: COLORS.bg, color: COLORS.text }}>
 
       <MotionDiv
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-        className="mx-auto grid h-full max-w-[1440px] grid-cols-1 gap-6 xl:grid-cols-[220px_minmax(0,1fr)]"
+        className="mx-auto grid h-full max-w-[1440px] grid-cols-1 grid-rows-[1fr] xl:grid-cols-[220px_minmax(0,1fr)] xl:grid-rows-[1fr] xl:gap-6 xl:px-6 xl:py-6"
       >
-        <aside className="xl:pr-6 xl:border-r xl:overflow-y-auto" style={{ borderColor: COLORS.line }}>
-          <div className="flex h-full flex-col">
-            <div className="pb-8 pt-4">
-              <div className="text-[1.9rem] font-semibold leading-none tracking-[-0.07em]">Tappd</div>
-              <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em]" style={{ color: COLORS.muted }}>
-                Admin
-              </div>
+        <aside className="hidden xl:flex xl:flex-col xl:pr-6 xl:border-r xl:overflow-y-auto" style={{ borderColor: COLORS.line }}>
+          <div className="pb-8 pt-4">
+            <div className="text-[1.9rem] font-semibold leading-none tracking-[-0.07em]">Tappd</div>
+            <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em]" style={{ color: COLORS.muted }}>
+              Admin
+            </div>
+          </div>
+
+          <nav className="space-y-1">
+            {NAV_ITEMS.map(item => {
+              const IconComponent = item.icon
+              const isActive = activeNav === item.id
+
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveNav(item.id)}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all duration-200"
+                  style={{
+                    background: isActive ? 'rgba(0,0,0,0.06)' : 'transparent',
+                    color: isActive ? 'rgba(0,0,0,0.88)' : COLORS.muted,
+                  }}
+                  onMouseEnter={e => {
+                    if (!isActive) e.currentTarget.style.background = 'rgba(0,0,0,0.04)'
+                  }}
+                  onMouseLeave={e => {
+                    if (!isActive) e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <IconComponent size={18} weight={isActive ? 'fill' : 'regular'} />
+                  <span className="text-sm font-medium tracking-[-0.02em]">{item.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+
+          <div className="mt-auto border-t pt-6" style={{ borderColor: COLORS.line }}>
+            <div className="flex items-center gap-3">
+              <UserCircle size={18} weight="regular" style={{ color: COLORS.muted }} />
+              <div className="min-w-0 truncate text-sm">{user?.email || 'Admin user'}</div>
             </div>
 
-            <nav className="space-y-1">
-              {NAV_ITEMS.map(item => {
-                const IconComponent = item.icon
-                const isActive = activeNav === item.id
-
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveNav(item.id)}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all duration-200"
-                    style={{
-                      background: isActive ? 'rgba(0,0,0,0.06)' : 'transparent',
-                      color: isActive ? 'rgba(0,0,0,0.88)' : COLORS.muted,
-                    }}
-                    onMouseEnter={e => {
-                      if (!isActive) e.currentTarget.style.background = 'rgba(0,0,0,0.04)'
-                    }}
-                    onMouseLeave={e => {
-                      if (!isActive) e.currentTarget.style.background = 'transparent'
-                    }}
-                  >
-                    <IconComponent size={18} weight={isActive ? 'fill' : 'regular'} />
-                    <span className="text-sm font-medium tracking-[-0.02em]">{item.label}</span>
-                  </button>
-                )
-              })}
-            </nav>
-
-            <div className="mt-8 hidden pt-6 xl:mt-auto xl:block xl:border-t" style={{ borderColor: COLORS.line }}>
-              <div className="flex items-center gap-3">
-                <UserCircle size={18} weight="regular" style={{ color: COLORS.muted }} />
-                <div className="min-w-0 truncate text-sm">{user?.email || 'Admin user'}</div>
-              </div>
-
-              <button
-                onClick={handleLogout}
-                className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200"
-                style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = COLORS.soft }}
-              >
-                <SignOut size={15} weight="regular" />
-                <span>Sign out</span>
-              </button>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200"
+              style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = COLORS.soft }}
+            >
+              <SignOut size={15} weight="regular" />
+              <span>Sign out</span>
+            </button>
           </div>
         </aside>
 
@@ -269,7 +267,7 @@ export default function Dashboard() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.42, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-          className="min-w-0 h-full min-h-0"
+          className="min-w-0 h-full min-h-0 px-4 py-4 pb-[4.5rem] md:px-6 md:py-6 md:pb-[4.5rem] xl:px-0 xl:py-0 xl:pb-0"
         >
           <div className="flex h-full flex-col">
             <header className="flex items-center justify-end pb-2">
@@ -385,52 +383,69 @@ export default function Dashboard() {
         </MotionMain>
       </MotionDiv>
 
-      <div className="fixed bottom-6 right-4 z-40 xl:hidden" ref={fabRef}>
-        <AnimatePresence>
-          {fabOpen && (
-            <MotionDiv
-              initial={{ opacity: 0, y: 12, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.95 }}
-              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="absolute bottom-14 right-0 mb-2 w-64 rounded-2xl border bg-white p-4"
-              style={{ borderColor: COLORS.line, boxShadow: '0 12px 30px rgba(0,0,0,0.10)' }}
-            >
-              <div className="flex items-center gap-3">
-                <UserCircle size={18} weight="regular" style={{ color: COLORS.muted }} />
-                <div className="min-w-0 truncate text-sm">{user?.email || 'Admin user'}</div>
-              </div>
+      {/* Mobile bottom tab bar */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 xl:hidden"
+        style={{ background: 'rgba(247,247,245,0.92)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${COLORS.line}` }}
+      >
+        <div className="flex items-stretch px-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          {NAV_ITEMS.map(item => {
+            const IconComponent = item.icon
+            const isActive = activeNav === item.id
+            return (
               <button
-                onClick={handleLogout}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition-colors duration-200"
-                style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
+                key={item.id}
+                onClick={() => setActiveNav(item.id)}
+                className="flex flex-1 flex-col items-center justify-center gap-1 py-3 transition-colors duration-150"
+                style={{ color: isActive ? COLORS.text : COLORS.muted }}
               >
-                <SignOut size={15} weight="regular" />
-                <span>Sign out</span>
+                <IconComponent size={22} weight={isActive ? 'fill' : 'regular'} />
+                <span className="text-[10px] font-medium tracking-[0.02em]">{item.label}</span>
               </button>
-            </MotionDiv>
-          )}
-        </AnimatePresence>
-        <MotionDiv
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.93 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-        >
-          <button
-            onClick={() => setFabOpen(open => !open)}
-            className="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200"
-            style={{
-              background: fabOpen ? 'rgba(0,0,0,0.10)' : COLORS.brand,
-              color: fabOpen ? COLORS.text : '#FFFFFF',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
-            }}
-          >
-            {fabOpen ? <X size={20} weight="bold" /> : <UserCircle size={22} weight="fill" />}
-          </button>
-        </MotionDiv>
+            )
+          })}
+
+          {/* Account button */}
+          <div className="relative flex flex-col items-center justify-center" ref={fabRef}>
+            <button
+              onClick={() => setFabOpen(open => !open)}
+              className="flex flex-1 flex-col items-center justify-center gap-1 py-3 px-4 transition-colors duration-150"
+              style={{ color: fabOpen ? COLORS.text : COLORS.muted }}
+            >
+              <UserCircle size={22} weight={fabOpen ? 'fill' : 'regular'} />
+              <span className="text-[10px] font-medium tracking-[0.02em]">Account</span>
+            </button>
+
+            <AnimatePresence>
+              {fabOpen && (
+                <MotionDiv
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  className="absolute bottom-full right-0 mb-2 w-64 rounded-2xl border bg-white p-4"
+                  style={{ borderColor: COLORS.line, boxShadow: '0 12px 30px rgba(0,0,0,0.10)' }}
+                >
+                  <div className="flex items-center gap-3">
+                    <UserCircle size={18} weight="regular" style={{ color: COLORS.muted }} />
+                    <div className="min-w-0 truncate text-sm">{user?.email || 'Admin user'}</div>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition-colors duration-200"
+                    style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
+                  >
+                    <SignOut size={15} weight="regular" />
+                    <span>Sign out</span>
+                  </button>
+                </MotionDiv>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
 
-      <div className="pointer-events-none fixed bottom-4 right-4 z-30 flex w-[min(92vw,24rem)] flex-col gap-3">
+      <div className="pointer-events-none fixed bottom-20 right-4 z-30 flex w-[min(92vw,24rem)] flex-col gap-3 xl:bottom-4">
         <AnimatePresence initial={false}>
           {liveToasts.map(({ toastId, item }) => (
             <MotionAside
