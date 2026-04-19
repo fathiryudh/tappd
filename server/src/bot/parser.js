@@ -307,7 +307,7 @@ function dateRangeMatch(raw, todayISO) {
   if (leftTokens.length < 2) return null
 
   const statusInfo = parseStatusToken(leftTokens[0])
-  if (!statusInfo) return null
+  if (!statusInfo || statusInfo.status === 'IN') return null
 
   const startISO = parseSingleDate(leftTokens.slice(1).join(' '), todayISO)
   if (!startISO) return null
