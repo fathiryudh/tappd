@@ -333,4 +333,16 @@ describe('/holiday confirm and cancel callbacks', () => {
 
     expect(prisma.availability.upsert).not.toHaveBeenCalled()
   })
+
+  test('holiday:cancel from confirm step clears session without saving', async () => {
+    // Drive all the way to the confirm step
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '21/4'))
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '24/4'))
+    prisma.availability.upsert.mockClear()
+
+    await handlers.handleCallbackQuery(makeCallback(MSG_USER_ID, 1, 'holiday:cancel'))
+
+    expect(prisma.availability.upsert).not.toHaveBeenCalled()
+  })
 })

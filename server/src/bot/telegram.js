@@ -1565,7 +1565,10 @@ async function handleCallbackQuery(query) {
     if (!holidaySession || holidaySession.step !== 'confirm') return
     holidaySessions.delete(telegramId)
     const officerForHoliday = await prisma.officer.findUnique({ where: { telegramId } })
-    if (!officerForHoliday) return
+    if (!officerForHoliday) {
+      await bot.sendMessage(chatId, 'Profile not found — send /start to register.', { reply_markup: replyKeyboardMarkup() })
+      return
+    }
     const records = holidaySession.days.map(date => ({ date, status: 'OUT', reason: 'OVL', notes: '' }))
     await storeAndConfirm(records, officerForHoliday, chatId, 'holiday_confirm', null)
     return
