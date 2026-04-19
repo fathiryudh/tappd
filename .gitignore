@@ -8,3 +8,4 @@ server/generated
 server/prisma/yappd.db
 .agents/
 docs/superpowers/
+.claude/
