@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma')
 const { transporter } = require('../utils/mailer')
+const { localISODate, toUTCStartOfDay } = require('../utils/date')
 
 async function sendDailyDigest(digestEmail) {
   if (!digestEmail) { console.warn('DIGEST_EMAIL not set — skipping digest'); return }
@@ -80,10 +81,12 @@ async function sendDailyDigest(digestEmail) {
 }
 
 async function getUnreportedOfficers() {
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
+  // Use SGT offset (+8h) so the date is correct when this runs at 23:30 UTC (7:30 AM SGT)
+  const sgtNow = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  const today = toUTCStartOfDay(localISODate(sgtNow))
   return prisma.officer.findMany({
     where: {
+      // Only officers with no availability record for today — OUT officers have a record and are excluded
       availability: { none: { date: today } },
     },
   })
