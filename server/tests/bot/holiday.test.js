@@ -142,4 +142,8 @@ describe('dateRangeMatch', () => {
   test('plain "ovl" (no range) → returns null', () => {
     expect(dateRangeMatch('ovl', TODAY)).toBeNull()
   })
+
+  test('weekend-only range → returns null', () => {
+    expect(dateRangeMatch('ovl 25/4 to 26/4', TODAY)).toBeNull()
+  })
 })
