@@ -72,6 +72,11 @@ function buildSplitRecord(amStatus, amReason, pmStatus, pmReason) {
   }
 }
 
+function fmtDateShort(isoDate) {
+  const d = new Date(isoDate + 'T00:00:00')
+  return `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })}`
+}
+
 function isIgnorableReplyMarkupEditError(error) {
   const description = error?.response?.body?.description || error?.message || ''
   return (
@@ -95,6 +100,7 @@ const sessions = new Map()
 const weekSessions = new Map()
 const pendingDeletion = new Set()
 const editSessions = new Map()
+const holidaySessions = new Map()  // telegramId → { step: 'start'|'end'|'confirm', startDate, endDate, days }
 
 function statusKeyboard() {
   return {
@@ -1109,6 +1115,72 @@ function isPrivateChat(msg) {
   return msg.chat.type === 'private'
 }
 
+async function handleHolidaySession(telegramId, chatId, rawMessage, todayISO) {
+  const session = holidaySessions.get(telegramId)
+  if (!session) return false
+
+  if (rawMessage.startsWith('/')) {
+    holidaySessions.delete(telegramId)
+    return false // let the command handler process it
+  }
+
+  if (session.step === 'start') {
+    const startISO = parseSingleDate(rawMessage, todayISO)
+    if (!startISO) {
+      await bot.sendMessage(chatId, "Couldn't read that date — try 21/4 or 21 Apr", {})
+      return true
+    }
+    session.startDate = startISO
+    session.step = 'end'
+    await bot.sendMessage(chatId, 'What is your end date? (e.g. 30/4 or 30 Apr)', {
+      reply_markup: { inline_keyboard: [[{ text: 'Cancel', callback_data: 'holiday:cancel' }]] },
+    })
+    return true
+  }
+
+  if (session.step === 'end') {
+    const endISO = parseSingleDate(rawMessage, todayISO)
+    if (!endISO) {
+      await bot.sendMessage(chatId, "Couldn't read that date — try 30/4 or 30 Apr")
+      return true
+    }
+    if (endISO < session.startDate) {
+      await bot.sendMessage(chatId, 'End date must be after start date. What is your end date?', {})
+      return true
+    }
+    const days = expandWeekdays(session.startDate, endISO)
+    if (days === null) {
+      await bot.sendMessage(chatId, "That's over 60 working days — please check your dates. What is your end date?")
+      return true
+    }
+    if (days.length === 0) {
+      await bot.sendMessage(chatId, 'No working days in that range. Please try different dates.')
+      return true
+    }
+    session.endDate = endISO
+    session.days = days
+    session.step = 'confirm'
+    const n = days.length
+    const startFmt = fmtDateShort(session.startDate)
+    const endFmt = fmtDateShort(endISO)
+    await bot.sendMessage(
+      chatId,
+      `This will mark you OUT (OVL) for ${n} working day${n !== 1 ? 's' : ''} from ${startFmt} – ${endFmt}. Confirm?`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: 'Yes, confirm', callback_data: 'holiday:confirm' },
+            { text: 'Cancel', callback_data: 'holiday:cancel' },
+          ]],
+        },
+      }
+    )
+    return true
+  }
+
+  return true
+}
+
 async function handleMessage(msg) {
   if (!isPrivateChat(msg)) {
     await bot.sendMessage(msg.chat.id, 'This bot only works in private chats.')
@@ -1180,6 +1252,11 @@ async function handleMessage(msg) {
   }
 
   if (!rawMessage) return
+
+  if (holidaySessions.has(telegramId)) {
+    const handled = await handleHolidaySession(telegramId, chatId, rawMessage, todayISO)
+    if (handled) return
+  }
 
   if (pendingDeletion.has(telegramId)) {
     pendingDeletion.delete(telegramId)
@@ -1465,10 +1542,11 @@ async function handleCallbackQuery(query) {
   const todayISO = localISODate()
   const tomorrowISO = localISODate(new Date(Date.now() + 86400000))
 
-  if (data === 'cancel') {
+  if (data === 'cancel' || data === 'holiday:cancel') {
     sessions.delete(telegramId)
     weekSessions.delete(telegramId)
     pendingDeletion.delete(telegramId)
+    holidaySessions.delete(telegramId)
     await bot.editMessageText('Cancelled.', {
       chat_id: chatId,
       message_id: messageId,
@@ -1927,6 +2005,26 @@ async function handleCommand(msg) {
       `This will permanently delete *${displayName}* and all attendance history.\n\nType *YES* to confirm.`,
       { parse_mode: 'Markdown' }
     )
+    return
+  }
+
+  if (text.startsWith('/holiday')) {
+    const officer = await prisma.officer.findUnique({ where: { telegramId } })
+    if (!officer) {
+      await bot.sendMessage(msg.chat.id, 'Not registered. Send /start to get started.')
+      return
+    }
+    if (officer.role === 'NSF') {
+      await bot.sendMessage(msg.chat.id, 'NSFs cannot log attendance. Use /roster to view the roster.')
+      return
+    }
+    holidaySessions.set(telegramId, { step: 'start', startDate: null, endDate: null, days: null })
+    await bot.sendMessage(
+      msg.chat.id,
+      'What is your start date? (e.g. 21/4 or 21 Apr)',
+      { reply_markup: { inline_keyboard: [[{ text: 'Cancel', callback_data: 'holiday:cancel' }]] } }
+    )
+    return
   }
 }
 

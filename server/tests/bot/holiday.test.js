@@ -148,7 +148,7 @@ describe('dateRangeMatch', () => {
   })
 })
 
-const { makeMsg, setupMocks } = require('./helpers')
+const { makeMsg, makeCallback, setupMocks } = require('./helpers')
 
 const MSG_USER_ID = 200
 
@@ -190,5 +190,77 @@ describe('dateRangeMatch integration via handleMessage', () => {
 
     // dateRangeMatch returns null (>60 weekdays); keywordMatch still catches 'ovl' → saves today
     expect(prisma.availability.upsert).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('/holiday guided flow', () => {
+  let bot, prisma, handlers
+
+  beforeEach(() => {
+    jest.useFakeTimers({ now: new Date('2026-04-21T08:00:00') })
+    ;({ bot, prisma, handlers } = setupMocks())
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  test('/holiday prompts for start date', async () => {
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+
+    expect(bot.sendMessage).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.stringContaining('start date'),
+      expect.any(Object)
+    )
+  })
+
+  test('/holiday → start date → prompts for end date', async () => {
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+    bot.sendMessage.mockClear()
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '21/4'))
+
+    expect(bot.sendMessage).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.stringContaining('end date'),
+      expect.any(Object)
+    )
+  })
+
+  test('/holiday → start → end → shows confirmation with count and buttons', async () => {
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '21/4'))
+    bot.sendMessage.mockClear()
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '25/4'))
+
+    const lastCall = bot.sendMessage.mock.calls[bot.sendMessage.mock.calls.length - 1]
+    expect(lastCall[1]).toMatch(/working day/)
+    expect(lastCall[1]).toContain('OVL')
+    expect(lastCall[2].reply_markup.inline_keyboard[0]).toHaveLength(2)
+  })
+
+  test('invalid start date re-prompts with error', async () => {
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+    bot.sendMessage.mockClear()
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, 'notadate'))
+
+    expect(bot.sendMessage).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.stringContaining("Couldn't read"),
+      expect.anything()
+    )
+  })
+
+  test('end date before start date re-prompts with error', async () => {
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '25/4'))
+    bot.sendMessage.mockClear()
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '21/4'))
+
+    expect(bot.sendMessage).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.stringContaining('after start'),
+      expect.anything()
+    )
   })
 })
