@@ -1292,7 +1292,7 @@ async function handleMessage(msg) {
     await prisma.availability.deleteMany({
       where: {
         officerId: officer.id,
-        date: { in: cancelDays.map(d => new Date(d + 'T00:00:00')) },
+        date: { in: cancelDays.map(d => new Date(d)) },
       },
     })
     const n = cancelDays.length
