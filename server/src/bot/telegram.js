@@ -1178,6 +1178,11 @@ async function handleHolidaySession(telegramId, chatId, rawMessage, todayISO) {
     return true
   }
 
+  if (session.step === 'confirm') {
+    await bot.sendMessage(chatId, 'Please tap Yes, confirm or Cancel above.')
+    return true
+  }
+
   return true
 }
 
@@ -1919,6 +1924,7 @@ async function handleCommand(msg) {
     } else {
       await promptVerification(msg.chat.id)
     }
+    holidaySessions.delete(telegramId)
     return
   }
 

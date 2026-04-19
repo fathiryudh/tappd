@@ -263,4 +263,25 @@ describe('/holiday guided flow', () => {
       expect.anything()
     )
   })
+
+  test('range > 60 weekdays re-prompts with error', async () => {
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '1/1'))
+    bot.sendMessage.mockClear()
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '30/6'))
+
+    const lastMsg = bot.sendMessage.mock.calls[bot.sendMessage.mock.calls.length - 1][1]
+    expect(lastMsg).toContain('60 working days')
+  })
+
+  test('text at confirm step prompts to tap buttons', async () => {
+    await handlers.handleCommand(makeMsg(MSG_USER_ID, '/holiday'))
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '21/4'))
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, '25/4'))
+    bot.sendMessage.mockClear()
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, 'yes please'))
+
+    const lastMsg = bot.sendMessage.mock.calls[bot.sendMessage.mock.calls.length - 1][1]
+    expect(lastMsg).toContain('tap')
+  })
 })
