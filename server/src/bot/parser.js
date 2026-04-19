@@ -113,7 +113,7 @@ function parseStatusToken(t) {
   if (lower === 'ovl' || lower === 'overseas') return { status: 'OUT', reason: 'OVL' }
   if (lower === 'oil') return { status: 'OUT', reason: 'OIL' }
   if (lower === 'course' || lower === 'training') return { status: 'OUT', reason: 'Course' }
-  if (lower === 'appointment') return { status: 'OUT', reason: 'Appointment' }
+  if (lower === 'hq') return { status: 'OUT', reason: 'HQ' }
   return null
 }
 
