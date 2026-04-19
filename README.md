@@ -15,6 +15,7 @@ Attendance reporting system for SCDF 2nd Division HQ. Officers report daily atte
   - [Keyword Shortcuts](#keyword-shortcuts)
   - [Reporting for Tomorrow](#reporting-for-tomorrow)
   - [Multi-Day Reporting](#multi-day-reporting)
+  - [Planning a Holiday or Leave Block](#planning-a-holiday-or-leave-block)
   - [Planning Your Week](#planning-your-week)
   - [Checking Your Status](#checking-your-status)
   - [Viewing the Roster](#viewing-the-roster)
@@ -170,6 +171,51 @@ mon in tue mc wed vl thu in fri in
 - Day + month name: `14 apr in`, `15 april mc`
 
 The bot saves all the records at once and confirms each one.
+
+---
+
+### Planning a Holiday or Leave Block
+
+If you are going away for several days, you can mark your entire leave period in one go instead of reporting day by day.
+
+**Using the `/holiday` command:**
+
+Type `/holiday` to start. The bot will guide you through three steps:
+
+1. The bot asks for your **start date** — type it in, for example `21/4` or `21 Apr`.
+2. The bot asks for your **end date** — type it the same way.
+3. The bot shows a summary of how many working days will be marked and asks you to confirm.
+
+Tap **Yes, confirm** to save, or **Cancel** to stop.
+
+All weekends in the range are skipped automatically — only Monday to Friday are recorded. Any status you have already set for days within that range will be overwritten.
+
+> Example: typing `/holiday` and entering `21/4` then `30/4` will mark you OUT (OVL) for every working day from 21 Apr to 30 Apr.
+
+---
+
+**Using the text shortcut:**
+
+You can also type a range directly without going through the guided steps. The format is:
+
+```
+<leave type> <start date> to <end date>
+```
+
+Examples:
+
+| What you type | What is saved |
+|---|---|
+| `ovl 21/4 to 30/4` | OUT (OVL) for all working days 21–30 Apr |
+| `vl 5 may to 9 may` | OUT (VL) for working days in that range |
+| `mc 21/4 to 25/4` | OUT (MC) for working days 21–25 Apr |
+| `wfh 28/4 to 2/5` | OUT (WFH) for working days across the two weeks |
+
+The leave type must be one of the standard keywords: `ovl`, `vl`, `mc`, `oil`, `wfh`, `course`, `hq`.
+
+Weekends are skipped. Existing records in the range are overwritten.
+
+> Ranges longer than 60 working days are not accepted — contact your admin if you need to book more than that.
 
 ---
 
@@ -361,6 +407,7 @@ The email is sent in both plain text and HTML. The HTML version colour-codes eac
 | `/start` | Register or view your profile |
 | `/report` | Log attendance for today |
 | `/status` | Check today's status |
+| `/holiday` | Mark yourself OVL for a date range |
 | `/roster` | View today's division roster |
 | `/weekplan` | See your current week plan |
 | `/editprofile` | Edit your profile details |
@@ -380,4 +427,7 @@ course / training                          →  OUT (Course)
 Add "tmr" / "tmrw" / "tomorrow" to any of the above to report for the next day.
 
 Multi-day: "mon in, tue mc, wed wfh"  or  "14/4 in, 15/4 mc"
+
+Range:  ovl 21/4 to 30/4              →  OUT (OVL) for all weekdays in range
+        vl 5 may to 9 may             →  OUT (VL) for all weekdays in range
 ```
