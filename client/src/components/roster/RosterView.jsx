@@ -282,14 +282,14 @@ export default function RosterView({
                 <NavBtn onClick={nextWeek} title="Next week">→</NavBtn>
               </div>
               <NavBtn
-                onClick={() => fetchData({ silent: true })}
+                onClick={() => fetchData()}
                 small
-                disabled={refreshing}
-                title={refreshing ? 'Refreshing attendance' : 'Refresh attendance'}
+                disabled={loading || refreshing}
+                title={loading ? 'Loading…' : 'Refresh attendance'}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <ArrowsClockwise size={12} className={refreshing ? 'animate-spin' : ''} />
-                  {refreshing ? 'Refreshing' : 'Refresh'}
+                  <ArrowsClockwise size={12} className={loading ? 'animate-spin' : ''} />
+                  {loading ? 'Loading…' : 'Refresh'}
                 </span>
               </NavBtn>
             </div>
