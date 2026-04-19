@@ -227,4 +227,57 @@ function multiDayMatch(raw, todayISO) {
   return null
 }
 
-module.exports = { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput }
+function parseSingleDate(str, todayISO) {
+  const s = str.trim().toLowerCase()
+  if (!s) return null
+
+  // Slash format: 21/4, 21/04, 21/4/2026
+  const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/)
+  if (slashMatch) {
+    const day = parseInt(slashMatch[1], 10)
+    const month = parseInt(slashMatch[2], 10)
+    const year = slashMatch[3] ? parseInt(slashMatch[3], 10) : new Date(todayISO + 'T00:00:00').getFullYear()
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  }
+
+  // Named month format: "21 apr", "21 april", "21 apr 2026"
+  const tokens = s.split(/\s+/)
+  if (tokens.length >= 2) {
+    const dayNum = parseInt(tokens[0], 10)
+    if (!isNaN(dayNum) && String(dayNum) === tokens[0]) {
+      const monthNum = MONTH_MAP[tokens[1]]
+      if (monthNum) {
+        let year = new Date(todayISO + 'T00:00:00').getFullYear()
+        if (tokens[2]) {
+          const possibleYear = parseInt(tokens[2], 10)
+          if (!isNaN(possibleYear) && possibleYear > 2020) year = possibleYear
+        }
+        if (dayNum < 1 || dayNum > 31) return null
+        return `${year}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+      }
+    }
+  }
+
+  return null
+}
+
+function expandWeekdays(startISO, endISO) {
+  const result = []
+  const current = new Date(startISO + 'T00:00:00')
+  const end = new Date(endISO + 'T00:00:00')
+  while (current <= end) {
+    const dow = current.getDay()
+    if (dow >= 1 && dow <= 5) {
+      const y = current.getFullYear()
+      const m = String(current.getMonth() + 1).padStart(2, '0')
+      const d = String(current.getDate()).padStart(2, '0')
+      result.push(`${y}-${m}-${d}`)
+      if (result.length > 60) return result // signal overflow to caller
+    }
+    current.setDate(current.getDate() + 1)
+  }
+  return result
+}
+
+module.exports = { expandRecords, keywordMatch, multiDayMatch, getDayISO, addDays, getMondayOfWeek, getNextWeekMonday, sanitizeInput, parseSingleDate, expandWeekdays }
