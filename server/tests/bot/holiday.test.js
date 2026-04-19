@@ -147,3 +147,48 @@ describe('dateRangeMatch', () => {
     expect(dateRangeMatch('ovl 25/4 to 26/4', TODAY)).toBeNull()
   })
 })
+
+const { makeMsg, setupMocks } = require('./helpers')
+
+const MSG_USER_ID = 200
+
+describe('dateRangeMatch integration via handleMessage', () => {
+  let bot, prisma, handlers
+
+  beforeEach(() => {
+    jest.useFakeTimers({ now: new Date('2026-04-21T08:00:00') }) // Tuesday
+    ;({ bot, prisma, handlers } = setupMocks())
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  test('"ovl 21/4 to 25/4" saves OUT(OVL) records for weekdays', async () => {
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, 'ovl 21/4 to 25/4'))
+
+    expect(prisma.availability.upsert).toHaveBeenCalled()
+    const calls = prisma.availability.upsert.mock.calls
+    expect(calls.every(c => c[0].create.status === 'OUT' && c[0].create.reason === 'OVL')).toBe(true)
+  })
+
+  test('"vl 21/4 to 24/4" saves OUT(VL) records', async () => {
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, 'vl 21/4 to 24/4'))
+
+    expect(prisma.availability.upsert).toHaveBeenCalled()
+    expect(prisma.availability.upsert.mock.calls[0][0].create).toMatchObject({ status: 'OUT', reason: 'VL' })
+  })
+
+  test('plain "ovl" (no range) still saves single record via keywordMatch', async () => {
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, 'ovl'))
+
+    expect(prisma.availability.upsert).toHaveBeenCalledTimes(1)
+  })
+
+  test('range > 60 weekdays falls through to keywordMatch (single day saved)', async () => {
+    await handlers.handleMessage(makeMsg(MSG_USER_ID, 'ovl 1/1 to 30/6'))
+
+    // dateRangeMatch returns null (>60 weekdays); keywordMatch still catches 'ovl' → saves today
+    expect(prisma.availability.upsert).toHaveBeenCalledTimes(1)
+  })
+})
