@@ -212,7 +212,7 @@ export default function Dashboard() {
           <div className="pb-8 pt-4">
             <div className="text-[1.9rem] font-semibold leading-none tracking-[-0.07em]">Tappd</div>
             <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.24em]" style={{ color: COLORS.muted }}>
-              Admin
+              Dashboard
             </div>
           </div>
 

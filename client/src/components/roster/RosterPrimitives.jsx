@@ -7,7 +7,7 @@ export function RosterLocationBadge({ indicatorColor = ROSTER_COLORS.brand }) {
       style={{ background: 'rgba(15,23,42,0.06)', color: 'rgba(15,23,42,0.68)' }}
     >
       <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: indicatorColor }} />
-      SCDF 2 Div HQ · Tampines
+      LIVE
     </span>
   )
 }

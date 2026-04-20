@@ -9,7 +9,7 @@ export const ROSTER_COLORS = {
   brand: '#111111',
   info: '#111111',
   infoSoft: 'rgba(0,0,0,0.04)',
-  success: '#265D47',
+  success: '#63c79f',
   successSoft: '#EDF7F0',
   warning: '#9A6700',
   warningSoft: '#FFF6DB',
