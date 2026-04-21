@@ -10,6 +10,49 @@
 
 ---
 
+## Prerequisites (completed before this plan session)
+
+- **SQL already applied in Supabase** — do not re-run:
+  ```sql
+  ALTER TABLE "User"
+    ADD COLUMN "scopeDivisionId" text REFERENCES "Division"("id"),
+    ADD COLUMN "scopeBranchId"   text REFERENCES "Branch"("id"),
+    ADD COLUMN "digestEmails"    text[] NOT NULL DEFAULT '{}';
+  ```
+- **`prisma db pull` and `prisma generate` already run** — the Prisma schema at `server/prisma/schema.prisma` already includes `scopeDivisionId`, `scopeBranchId`, and `digestEmails` on the `User` model. Do not re-run.
+- **Create the new directories before Task 1:**
+  ```bash
+  mkdir -p /Users/fathir/Documents/yappd/server/src/cron
+  mkdir -p /Users/fathir/Documents/yappd/server/tests/cron
+  ```
+- **Create the feature branch before starting any task:**
+  ```bash
+  cd /Users/fathir/Documents/yappd
+  git checkout -b fix/cron-reliability-and-email-scoping
+  ```
+- **Set a local `CRON_SECRET`** in `server/.env` (needed for the smoke test in Task 3 Step 5). Generate one now if not already set:
+  ```bash
+  echo "CRON_SECRET=$(openssl rand -hex 32)" >> /Users/fathir/Documents/yappd/server/.env
+  ```
+
+## Codebase context for fresh agents
+
+- `server/src/bot/digest.js` — currently exports `sendDailyDigest(digestEmail)` (single string) and `getUnreportedOfficers()`. Task 1 changes the signature to `(recipients, officerWhere)`.
+- `server/server.js` — currently imports `sendDailyDigest` and `getUnreportedOfficers` directly and calls them inline in cron schedules. Task 3 replaces these with `runMorningNudge` and `runDigestEmail` from `jobs.js`. The old imports are removed.
+- `server/src/routes/index.js` — Tasks 3 and 4 each show the complete new file content (Task 3 adds `/cron`, Task 4 adds `/settings`). Apply them in order; each is a full replacement.
+- `server/src/bot/telegram.js` — exports `nudgeOfficers(officers)` at line 2092. Do not modify it.
+- `server/src/middleware/authenticate.js` — exports a single middleware function that reads `access_token` cookie and sets `req.user = { sub: userId, email }`.
+- `server/src/config/prisma.js` — exports the shared Prisma client instance. Always import from here, never instantiate a new one.
+- `client/src/api/axiosClient.js` — pre-configured axios instance with `baseURL: '/api/v1'` and auto-refresh on 401. All client API files import from this.
+- `client/src/lib/http.js` — exports `unwrapResponse(r) => r.data`. Use `.then(unwrapResponse)` on all axiosClient calls.
+- `client/src/pages/Dashboard.jsx` — desktop nav lives in `<aside className="hidden xl:flex ...">` containing a `<nav className="space-y-1">` and a bottom user card. Mobile nav is a FAB at bottom-right. The Settings link goes after `</nav>` in the sidebar and before the Sign out button in the FAB panel.
+- `client/src/api/officers.api.js` — exports `fetchOfficerFormOptions()` which returns `{ divisions: [{id, name}], branches: [{id, name}] }`. Reuse this in Settings.jsx — no new endpoint needed for division/branch options.
+- `@phosphor-icons/react` — `GearSix`, `ArrowLeft`, `Plus`, and `X` are all valid named exports in the installed version.
+- `DIGEST_EMAIL` env var — this single-recipient env var is retired by this plan (no longer referenced in `server.js` or `jobs.js`). Leave it in `.env` and `.env.example` untouched; it simply goes unused.
+- Jest config (`server/jest.config.js`) uses `testMatch: ['**/tests/**/*.test.js']` — the new `server/tests/cron/` directory is picked up automatically with no config changes.
+
+---
+
 ## File Map
 
 | File | Action | Purpose |
