@@ -5,6 +5,7 @@ import {
   Bell,
   CalendarBlank,
   Checks,
+  GearSix,
   SignOut,
   UserCircle,
   Users,
@@ -243,6 +244,17 @@ export default function Dashboard() {
               )
             })}
           </nav>
+
+          <button
+            onClick={() => navigate('/settings')}
+            className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all duration-200"
+            style={{ color: COLORS.muted }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+          >
+            <GearSix size={18} weight="regular" />
+            <span className="text-sm font-medium tracking-[-0.02em]">Settings</span>
+          </button>
 
           <div className="mt-auto border-t pt-6" style={{ borderColor: COLORS.line }}>
             <div className="flex items-center gap-3">
@@ -515,6 +527,14 @@ export default function Dashboard() {
                 <UserCircle size={18} weight="regular" style={{ color: COLORS.muted }} />
                 <div className="min-w-0 truncate text-sm">{user?.email || 'Admin user'}</div>
               </div>
+              <button
+                onClick={() => navigate('/settings')}
+                className="mt-3 inline-flex w-full items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition-colors duration-200"
+                style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
+              >
+                <GearSix size={15} weight="regular" />
+                <span>Settings</span>
+              </button>
               <button
                 onClick={handleLogout}
                 className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition-colors duration-200"
