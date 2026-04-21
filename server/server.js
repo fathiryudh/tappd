@@ -4,14 +4,13 @@ require('express-async-errors')
 
 const app = require('./app')
 const cron = require('node-cron')
-const { sendDailyDigest, getUnreportedOfficers } = require('./src/bot/digest')
+const { runMorningNudge, runDigestEmail } = require('./src/cron/jobs')
 
 const PORT = process.env.PORT || 8000
 
 app.listen(PORT, async () => {
   console.log(`Tappd server running on port ${PORT}`)
 
-  // Register Telegram webhook on startup (only if public URL is configured)
   if (process.env.WEBHOOK_BASE_URL && process.env.TELEGRAM_BOT_TOKEN) {
     try {
       const { bot } = require('./src/bot/telegram')
@@ -31,26 +30,22 @@ app.listen(PORT, async () => {
   }
 })
 
-// 7:30 AM SGT Mon–Fri = 23:30 UTC Sun–Thu — first nudge for unreported officers
+// 7:30 AM SGT Mon–Fri = 23:30 UTC Sun–Thu
 cron.schedule('30 23 * * 0-4', async () => {
   console.log('Running 7:30 AM nudge...')
   try {
-    const { nudgeOfficers } = require('./src/bot/telegram')
-    const unreported = await getUnreportedOfficers()
-    await nudgeOfficers(unreported)
+    await runMorningNudge()
   } catch (err) {
     console.error('Nudge cron error:', err)
   }
 })
 
-// 8:30 AM SGT Mon–Fri = 00:30 UTC Mon–Fri — digest + second nudge for still-unreported
+// 8:30 AM SGT Mon–Fri = 00:30 UTC Mon–Fri
 cron.schedule('30 0 * * 1-5', async () => {
   console.log('Running 8:30 AM digest + nudge...')
   try {
-    const { nudgeOfficers } = require('./src/bot/telegram')
-    await sendDailyDigest(process.env.DIGEST_EMAIL)
-    const unreported = await getUnreportedOfficers()
-    await nudgeOfficers(unreported)
+    await runDigestEmail()
+    await runMorningNudge()
   } catch (err) {
     console.error('Digest cron error:', err)
   }

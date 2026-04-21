@@ -4,6 +4,7 @@ const healthRoutes = require('./health.routes')
 const botRoutes = require('./bot.routes')
 const officersRoutes = require('./officers.routes')
 const notificationsRoutes = require('./notifications.routes')
+const cronRoutes = require('./cron.routes')
 
 const router = Router()
 
@@ -12,5 +13,6 @@ router.use('/health', healthRoutes)
 router.use('/bot', botRoutes)
 router.use('/officers', officersRoutes)
 router.use('/notifications', notificationsRoutes)
+router.use('/cron', cronRoutes)
 
 module.exports = router
