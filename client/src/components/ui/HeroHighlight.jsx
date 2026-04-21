@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-unused-vars
 import { motion, useMotionValue, useMotionTemplate } from 'framer-motion'
 
 const dotPattern = (color) => ({
