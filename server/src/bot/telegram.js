@@ -281,10 +281,10 @@ function dayLabel(isoDate, days) {
   const num = d.getDate()
   const entry = days[isoDate]
   if (!entry) return `${name} ${num}`
-  if (entry.splitDay) return `${name} ${num} Split`
-  if (entry.status === 'IN') return `${name} ${num} In`
+  if (entry.splitDay) return `${name} ${num} SPLIT`
+  if (entry.status === 'IN') return `${name} ${num} IN`
   const r = entry.reason ? entry.reason.slice(0, 4) : ''
-  return `${name} ${num} Out${r ? ` ${r}` : ''}`
+  return `${name} ${num} OUT${r ? ` ${r}` : ''}`
 }
 
 function buildWeekGridText(weekSession) {
@@ -1023,14 +1023,14 @@ async function handleRosterCommand(msg) {
   }
 
   const reasonSummary = Object.entries(reasonCounts).map(([r, c]) => `${r} ${c}`).join(', ')
-  const outStr = countOut > 0 && reasonSummary ? `Out ${countOut} (${reasonSummary})` : `Out ${countOut}`
+  const outStr = countOut > 0 && reasonSummary ? `OUT ${countOut} (${reasonSummary})` : `OUT ${countOut}`
 
   const d = new Date(todayISO)
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const dateStr = `${d.getDate()} ${d.toLocaleDateString('en-SG', { month: 'short' })} ${d.getFullYear()} (${dayNames[d.getDay()]})`
   const divLabel = targetDivisionName || 'All Divisions'
 
-  let text = `Roster\n${dateStr}\n${divLabel}\nIn ${countIn}\n${outStr}\nNot reported ${countNotReported}\n`
+  let text = `Roster\n${dateStr}\n${divLabel}\nIN ${countIn}\n${outStr}\nNot reported ${countNotReported}\n`
 
   const branches = {}
   for (const o of officers) {
