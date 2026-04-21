@@ -13,45 +13,48 @@ model User {
   refreshToken       String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
-  officers           Officer[]
+  scopeDivisionId    String?
+  scopeBranchId      String?
+  digestEmails       String[]            @default([])
   notificationEvents NotificationEvent[]
-}
-
-enum AvailabilityStatus {
-  IN
-  OUT
+  officers           Officer[]
+  Task               Task[]
+  Branch             Branch?             @relation(fields: [scopeBranchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Division           Division?           @relation(fields: [scopeDivisionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model Division {
   id       String    @id @default(cuid())
   name     String    @unique
   officers Officer[]
+  User     User[]
 }
 
 model Branch {
   id       String    @id @default(cuid())
   name     String    @unique
   officers Officer[]
+  User     User[]
 }
 
 model Officer {
   id                 String              @id @default(cuid())
   telegramId         String?             @unique
   telegramName       String?
-  phoneNumber        String              @unique
   name               String?
   rank               String?
-  role               String              @default("OFFICER")
-  divisionId         String?
-  division           Division?           @relation(fields: [divisionId], references: [id])
-  branchId           String?
-  branch             Branch?             @relation(fields: [branchId], references: [id])
   adminId            String?
-  admin              User?               @relation(fields: [adminId], references: [id], onDelete: SetNull)
-  availability       Availability[]
-  notificationEvents NotificationEvent[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+  phoneNumber        String              @unique
+  role               String              @default("OFFICER")
+  divisionId         String?
+  branchId           String?
+  availability       Availability[]
+  notificationEvents NotificationEvent[]
+  admin              User?               @relation(fields: [adminId], references: [id])
+  branch             Branch?             @relation(fields: [branchId], references: [id])
+  division           Division?           @relation(fields: [divisionId], references: [id])
 
   @@index([adminId])
   @@index([divisionId])
@@ -60,14 +63,14 @@ model Officer {
 model Availability {
   id         String             @id @default(cuid())
   officerId  String
-  officer    Officer            @relation(fields: [officerId], references: [id], onDelete: Cascade)
   date       DateTime
   status     AvailabilityStatus
   reason     String?
   rawMessage String
   notes      String?
-  splitDay   Boolean            @default(false)
   createdAt  DateTime           @default(now())
+  splitDay   Boolean            @default(false)
+  officer    Officer            @relation(fields: [officerId], references: [id], onDelete: Cascade)
 
   @@unique([officerId, date])
   @@index([officerId])
@@ -75,18 +78,55 @@ model Availability {
 }
 
 model NotificationEvent {
-  id          String   @id @default(cuid())
-  adminId     String
-  admin       User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  officerId    String
-  officer      Officer  @relation(fields: [officerId], references: [id], onDelete: Cascade)
-  title       String
-  message     String
-  eventDate   DateTime
-  readAt      DateTime?
-  createdAt   DateTime @default(now())
+  id        String    @id @default(cuid())
+  adminId   String
+  officerId String
+  title     String
+  message   String
+  eventDate DateTime
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  admin     User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  officer   Officer   @relation(fields: [officerId], references: [id], onDelete: Cascade)
 
   @@index([adminId, createdAt])
   @@index([adminId, readAt])
   @@index([officerId])
+}
+
+model Task {
+  id          String       @id
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  tag         String?
+  position    Int          @default(0)
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime
+  userId      String
+  User        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+enum AvailabilityStatus {
+  IN
+  OUT
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  YAPPD
 }
