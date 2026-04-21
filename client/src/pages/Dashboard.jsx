@@ -267,10 +267,126 @@ export default function Dashboard() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.42, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-          className="min-w-0 h-full min-h-0 px-4 py-4 pb-[4.5rem] md:px-6 md:py-6 md:pb-[4.5rem] xl:px-0 xl:py-0 xl:pb-0"
+          className="min-w-0 h-full min-h-0 px-4 py-4 xl:px-0 xl:py-0"
         >
           <div className="flex h-full flex-col">
-            <header className="flex items-center justify-end pb-2">
+            {/* Mobile header: logo + bell */}
+            <header className="xl:hidden pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[1.6rem] font-semibold leading-none tracking-[-0.07em]">Tappd</div>
+                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em]" style={{ color: COLORS.muted }}>
+                    Dashboard
+                  </div>
+                </div>
+                <div className="relative self-start" ref={panelRef}>
+                  <button
+                    onClick={() => setNotificationsOpen(open => !open)}
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200"
+                    style={{
+                      background: notificationsOpen ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
+                      color: 'rgba(0,0,0,0.72)',
+                    }}
+                    onMouseEnter={e => { if (!notificationsOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
+                    onMouseLeave={e => { if (!notificationsOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+                  >
+                    {notificationsOpen ? <X size={16} weight="regular" /> : <Bell size={16} weight="regular" />}
+                    <span>{notificationState.unreadCount > 0 ? `${notificationState.unreadCount} unread` : 'Notifications'}</span>
+                  </button>
+
+                  <AnimatePresence>
+                    {notificationsOpen && (
+                      <MotionDiv
+                        initial={{ opacity: 0, y: 16, filter: 'blur(8px)' }}
+                        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                        exit={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
+                        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                        className="absolute right-0 z-20 mt-3 w-[min(92vw,28rem)] rounded-[1.5rem] border bg-white p-4"
+                        style={{ borderColor: COLORS.line, boxShadow: '0 12px 30px rgba(0,0,0,0.08)' }}
+                      >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: COLORS.muted }}>
+                                Recent updates
+                              </div>
+                              <div className="mt-1 text-lg font-semibold tracking-[-0.04em]">Officer status events</div>
+                            </div>
+                            <button
+                              onClick={handleMarkAllRead}
+                              disabled={markingAllRead || notificationState.unreadCount === 0}
+                              className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-all duration-200 disabled:opacity-45"
+                              style={{ background: COLORS.soft, color: COLORS.text }}
+                              onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.background = 'rgba(0,0,0,0.07)' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = COLORS.soft }}
+                            >
+                              <Checks size={14} weight="light" />
+                              {markingAllRead ? 'Marking…' : 'Mark all read'}
+                            </button>
+                          </div>
+
+                          <div className="mt-4 max-h-[26rem] space-y-3 overflow-auto pr-1">
+                            {loadingNotifications ? (
+                              <NotificationEmpty label="Loading updates…" muted />
+                            ) : notificationState.items.length === 0 ? (
+                              <NotificationEmpty label="No officer updates yet." />
+                            ) : (
+                              notificationState.items.map(item => (
+                                <article
+                                  key={item.id}
+                                  className="rounded-[1rem] border px-4 py-4 transition-all duration-150"
+                                  style={{ background: item.readAt ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.04)', borderColor: COLORS.line }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)' }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = item.readAt ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.04)' }}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div>
+                                        <div className="text-sm font-semibold tracking-[-0.02em]">{item.title}</div>
+                                        <p className="mt-1 text-sm leading-6" style={{ color: COLORS.muted }}>
+                                          {item.message}
+                                        </p>
+                                      </div>
+                                      {!item.readAt && (
+                                        <span className="mt-1 h-2.5 w-2.5 rounded-full" style={{ background: COLORS.info }} />
+                                      )}
+                                    </div>
+                                    <div className="mt-3 text-[11px] uppercase tracking-[0.18em]" style={{ color: COLORS.muted }}>
+                                      {formatEventTime(item.createdAt)}
+                                    </div>
+                                </article>
+                              ))
+                            )}
+                          </div>
+                      </MotionDiv>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Mobile nav tabs */}
+              <nav className="mt-3 flex gap-1">
+                {NAV_ITEMS.map(item => {
+                  const IconComponent = item.icon
+                  const isActive = activeNav === item.id
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveNav(item.id)}
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200"
+                      style={{
+                        background: isActive ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
+                        color: isActive ? COLORS.text : COLORS.muted,
+                      }}
+                    >
+                      <IconComponent size={15} weight={isActive ? 'fill' : 'regular'} />
+                      <span>{item.label}</span>
+                    </button>
+                  )
+                })}
+              </nav>
+            </header>
+
+            {/* Desktop header: bell only */}
+            <header className="hidden xl:flex items-center justify-end pb-2">
                 <div className="relative self-start" ref={panelRef}>
                   <button
                     onClick={() => setNotificationsOpen(open => !open)}
@@ -383,69 +499,48 @@ export default function Dashboard() {
         </MotionMain>
       </MotionDiv>
 
-      {/* Mobile bottom tab bar */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-40 xl:hidden"
-        style={{ background: 'rgba(247,247,245,0.92)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${COLORS.line}` }}
-      >
-        <div className="flex items-stretch px-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-          {NAV_ITEMS.map(item => {
-            const IconComponent = item.icon
-            const isActive = activeNav === item.id
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveNav(item.id)}
-                className="flex flex-1 flex-col items-center justify-center gap-1 py-3 transition-colors duration-150"
-                style={{ color: isActive ? COLORS.text : COLORS.muted }}
-              >
-                <IconComponent size={22} weight={isActive ? 'fill' : 'regular'} />
-                <span className="text-[10px] font-medium tracking-[0.02em]">{item.label}</span>
-              </button>
-            )
-          })}
-
-          {/* Account button */}
-          <div className="relative flex flex-col items-center justify-center" ref={fabRef}>
-            <button
-              onClick={() => setFabOpen(open => !open)}
-              className="flex flex-1 flex-col items-center justify-center gap-1 py-3 px-4 transition-colors duration-150"
-              style={{ color: fabOpen ? COLORS.text : COLORS.muted }}
+      {/* Mobile FAB — sign out */}
+      <div className="fixed bottom-6 right-4 z-40 xl:hidden" ref={fabRef}>
+        <AnimatePresence>
+          {fabOpen && (
+            <MotionDiv
+              initial={{ opacity: 0, y: 12, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute bottom-14 right-0 mb-2 w-64 rounded-2xl border bg-white p-4"
+              style={{ borderColor: COLORS.line, boxShadow: '0 12px 30px rgba(0,0,0,0.10)' }}
             >
-              <UserCircle size={22} weight={fabOpen ? 'fill' : 'regular'} />
-              <span className="text-[10px] font-medium tracking-[0.02em]">Account</span>
-            </button>
+              <div className="flex items-center gap-3">
+                <UserCircle size={18} weight="regular" style={{ color: COLORS.muted }} />
+                <div className="min-w-0 truncate text-sm">{user?.email || 'Admin user'}</div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition-colors duration-200"
+                style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
+              >
+                <SignOut size={15} weight="regular" />
+                <span>Sign out</span>
+              </button>
+            </MotionDiv>
+          )}
+        </AnimatePresence>
 
-            <AnimatePresence>
-              {fabOpen && (
-                <MotionDiv
-                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.95 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                  className="absolute bottom-full right-0 mb-2 w-64 rounded-2xl border bg-white p-4"
-                  style={{ borderColor: COLORS.line, boxShadow: '0 12px 30px rgba(0,0,0,0.10)' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <UserCircle size={18} weight="regular" style={{ color: COLORS.muted }} />
-                    <div className="min-w-0 truncate text-sm">{user?.email || 'Admin user'}</div>
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition-colors duration-200"
-                    style={{ background: COLORS.soft, color: 'rgba(0,0,0,0.72)' }}
-                  >
-                    <SignOut size={15} weight="regular" />
-                    <span>Sign out</span>
-                  </button>
-                </MotionDiv>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+        <button
+          onClick={() => setFabOpen(open => !open)}
+          className="flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition-all duration-200"
+          style={{
+            background: fabOpen ? COLORS.text : COLORS.surface,
+            color: fabOpen ? '#fff' : COLORS.muted,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+          }}
+        >
+          <UserCircle size={22} weight={fabOpen ? 'fill' : 'regular'} />
+        </button>
       </div>
 
-      <div className="pointer-events-none fixed bottom-20 right-4 z-30 flex w-[min(92vw,24rem)] flex-col gap-3 xl:bottom-4">
+      <div className="pointer-events-none fixed bottom-4 right-4 z-30 flex w-[min(92vw,24rem)] flex-col gap-3">
         <AnimatePresence initial={false}>
           {liveToasts.map(({ toastId, item }) => (
             <MotionAside

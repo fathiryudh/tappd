@@ -3,7 +3,6 @@ import { ArrowsClockwise } from '@phosphor-icons/react'
 import {
   RosterErrorState,
   RosterLoadingState,
-  RosterLocationBadge,
   RosterShell,
 } from './RosterPrimitives'
 import DivisionBranchFilter from './DivisionBranchFilter'
@@ -70,14 +69,22 @@ function parseSplitHalf(notes, period) {
   }
 }
 
+function splitHalfValue(half, fallbackReason) {
+  if (half.in) return 'IN'
+  return half.reason || fallbackReason || 'OUT'
+}
+
 function parseSplitStatus(avail) {
   const notes = avail.notes || ''
   const am = parseSplitHalf(notes, 'AM')
   const pm = parseSplitHalf(notes, 'PM')
+  const amVal = splitHalfValue(am, avail.reason)
+  const pmVal = splitHalfValue(pm, avail.reason)
 
   return {
-    am: { type: am.in ? 'in' : 'out', label: am.in ? 'IN' : formatOutLabel(am.reason || avail.reason) },
-    pm: { type: pm.in ? 'in' : 'out', label: pm.in ? 'IN' : formatOutLabel(pm.reason || avail.reason) },
+    am: { type: am.in ? 'in' : 'out', label: amVal },
+    pm: { type: pm.in ? 'in' : 'out', label: pmVal },
+    splitLabel: `AM(${amVal})/PM(${pmVal})`,
   }
 }
 
@@ -86,7 +93,7 @@ function parseStatus(avail, { date, todayISO, now = new Date() } = {}) {
 
   if (avail.notes && avail.notes.includes('AM')) {
     const split = parseSplitStatus(avail)
-    const splitLabel = `${split.am.label} / ${split.pm.label}`
+    const splitLabel = split.splitLabel
 
     if (date && date === todayISO) {
       const activeHalf = now.getHours() >= AFTERNOON_START_HOUR ? split.pm : split.am
@@ -241,10 +248,6 @@ export default function RosterView({
   return (
     <div>
       <div className="mb-6 md:mb-8">
-        <div className="mb-5">
-          <RosterLocationBadge indicatorColor={isCurrentWeek ? COLORS.success : 'rgba(15,23,42,0.42)'} />
-        </div>
-
         {onFilterChange && (
           <div className="mb-5">
             <DivisionBranchFilter
