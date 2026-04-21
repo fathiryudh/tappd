@@ -5,6 +5,7 @@ const botRoutes = require('./bot.routes')
 const officersRoutes = require('./officers.routes')
 const notificationsRoutes = require('./notifications.routes')
 const cronRoutes = require('./cron.routes')
+const settingsRoutes = require('./settings.routes')
 
 const router = Router()
 
@@ -14,5 +15,6 @@ router.use('/bot', botRoutes)
 router.use('/officers', officersRoutes)
 router.use('/notifications', notificationsRoutes)
 router.use('/cron', cronRoutes)
+router.use('/settings', settingsRoutes)
 
 module.exports = router
