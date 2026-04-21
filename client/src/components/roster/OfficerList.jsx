@@ -4,7 +4,6 @@ import { fetchOfficers, fetchOfficerFormOptions, addOfficer, deleteOfficer } fro
 import {
   RosterErrorState,
   RosterLoadingState,
-  RosterLocationBadge,
   RosterShell,
 } from './RosterPrimitives'
 import DivisionBranchFilter from './DivisionBranchFilter'
@@ -131,10 +130,6 @@ export default function OfficerList({
   return (
     <div>
       <div className="mb-6 md:mb-8">
-        <div className="mb-5">
-          <RosterLocationBadge />
-        </div>
-
         {onFilterChange && (
           <div className="mb-5">
             <DivisionBranchFilter
