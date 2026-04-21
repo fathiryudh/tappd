@@ -11,7 +11,7 @@ const app = express()
 const clientDistDir = path.join(__dirname, '../client/dist')
 const clientIndexFile = path.join(clientDistDir, 'index.html')
 const hasClientBuild = fs.existsSync(clientIndexFile)
-const spaRoutes = ['/', '/login', '/register', '/dashboard', '/attendance']
+const spaRoutes = ['/', '/login', '/register', '/dashboard', '/attendance', '/settings']
 
 app.set('trust proxy', 1)
 
