@@ -89,7 +89,7 @@ describe('Report Today flows', () => {
       expect(prisma.availability.upsert).toHaveBeenCalledTimes(1)
       const upsertArg = prisma.availability.upsert.mock.calls[0][0]
       expect(upsertArg.create.status).toBe('OUT')
-      expect(upsertArg.create.reason).toBe('sick')
+      expect(upsertArg.create.reason).toBe('SICK')
 
       const allSendTexts = bot.sendMessage.mock.calls.map(c => c[1])
       for (const t of allSendTexts.slice(1)) {

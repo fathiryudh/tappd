@@ -1415,7 +1415,7 @@ async function handleMessage(msg) {
     if (weekSession.step === 'DAY_REASON_TEXT') {
       const date = weekSession.currentDay
       if (date) {
-        weekSession.days[date] = { status: 'OUT', reason: rawMessage, notes: '', splitDay: false }
+        weekSession.days[date] = { status: 'OUT', reason: rawMessage.toUpperCase(), notes: '', splitDay: false }
         weekSession.step = 'GRID'
         weekSession.currentDay = null
         const text = buildWeekGridText(weekSession)
@@ -1433,7 +1433,7 @@ async function handleMessage(msg) {
       const date = weekSession.currentDay
       if (date) {
         const day = weekSession.days[date] || { splitDay: true, amStatus: 'IN', amReason: null, pmStatus: null, pmReason: null }
-        day.amReason = rawMessage
+        day.amReason = rawMessage.toUpperCase()
         weekSession.days[date] = day
         weekSession.step = 'DAY_SPLIT_PM'
         const d = new Date(date)
@@ -1459,7 +1459,7 @@ async function handleMessage(msg) {
       const date = weekSession.currentDay
       if (date) {
         const day = weekSession.days[date] || { splitDay: true, amStatus: 'IN', amReason: null, pmStatus: 'IN', pmReason: null }
-        day.pmReason = rawMessage
+        day.pmReason = rawMessage.toUpperCase()
         Object.assign(day, buildSplitRecord(day.amStatus, day.amReason, day.pmStatus, day.pmReason))
         weekSession.days[date] = day
         weekSession.step = 'GRID'
@@ -1493,7 +1493,7 @@ async function handleMessage(msg) {
     const session = sessions.get(telegramId)
 
     if (session.step === 'REASON_TEXT') {
-      session.reason = rawMessage
+      session.reason = rawMessage.toUpperCase()
       if (session.reportToday) {
         const records = buildRecordsFromDateValue('today', session, todayISO, tomorrowISO)
         sessions.delete(telegramId)
@@ -1509,7 +1509,7 @@ async function handleMessage(msg) {
     }
 
     if (session.step === 'AM_REASON_TEXT') {
-      session.amReason = rawMessage
+      session.amReason = rawMessage.toUpperCase()
       session.step = 'PM_STATUS'
       const sent = await bot.sendMessage(chatId, 'Choose PM status.', {
         reply_markup: pmStatusKeyboard(),
@@ -1519,7 +1519,7 @@ async function handleMessage(msg) {
     }
 
     if (session.step === 'PM_REASON_TEXT') {
-      session.pmReason = rawMessage
+      session.pmReason = rawMessage.toUpperCase()
       const records = buildRecordsFromDateValue('today', session, todayISO, tomorrowISO)
       sessions.delete(telegramId)
       await storeAndConfirm(records, officer, chatId, rawMessage, null)
