@@ -23,9 +23,10 @@ async function sendDailyDigest(recipients, officerWhere = {}) {
 
   const rows = officers.map(o => {
     const avail = o.availability[0]
-    const displayName = o.name || o.telegramName || o.telegramId || 'Unknown'
+    const name = o.name || o.telegramName || o.telegramId || 'Unknown'
+    const displayName = o.rank ? `${o.rank} ${name}` : name
     if (!avail) {
-      return { label: '[?]', displayName, reasonStr: 'Unconfirmed', status: 'unconfirmed' }
+      return { label: '[?]', displayName, reasonStr: '(Unconfirmed)', status: 'unconfirmed' }
     }
     if (avail.status === 'IN') {
       return { label: '[IN]', displayName, reasonStr: '', status: 'in' }
