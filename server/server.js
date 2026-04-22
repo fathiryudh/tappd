@@ -18,10 +18,13 @@ app.listen(PORT, async () => {
       await bot.setWebHook(webhookUrl, { secret_token: process.env.TELEGRAM_WEBHOOK_SECRET })
       console.log(`Telegram webhook registered: ${webhookUrl}`)
       await bot.setMyCommands([
-        { command: 'start',      description: 'Register or view your profile' },
-        { command: 'status',     description: "Check today's attendance" },
-        { command: 'report',     description: 'Log attendance for today' },
-        { command: 'deregister', description: 'Remove your profile' },
+        { command: 'start',       description: 'Register or view your profile' },
+        { command: 'report',      description: 'Log attendance for today' },
+        { command: 'status',      description: "Check today's attendance status" },
+        { command: 'holiday',     description: 'Mark yourself OVL for a date range' },
+        { command: 'roster',      description: "View today's attendance roster" },
+        { command: 'editprofile', description: 'Edit your profile (name, rank, division, branch, phone)' },
+        { command: 'deregister',  description: 'Remove your profile and attendance history' },
       ])
       console.log('Telegram command menu registered')
     } catch (err) {
