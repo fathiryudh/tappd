@@ -30,6 +30,7 @@ Attendance reporting system for SCDF 2nd Division HQ. Officers report daily atte
   - [Roster Tab](#roster-tab)
   - [Notifications](#notifications)
   - [Daily Email Digest](#daily-email-digest)
+  - [Settings](#settings)
 - [Quick Reference](#quick-reference)
 
 ---
@@ -219,6 +220,25 @@ Weekends are skipped. Existing records in the range are overwritten.
 
 ---
 
+**Cancelling a booked leave range:**
+
+If your plans change and you want to clear leave you already booked, type:
+
+```
+cancel <start date> to <end date>
+```
+
+Examples:
+
+| What you type | What happens |
+|---|---|
+| `cancel 21/4 to 30/4` | Removes leave records for all working days 21–30 Apr |
+| `cancel 5 may to 9 may` | Removes leave records for that week |
+
+Cleared days become unconfirmed — you can re-report them at any time.
+
+---
+
 ### Planning Your Week
 
 **Plan This Week** — Opens a grid of the remaining days this week (from today onwards). Tap each day to set a status, then tap **Confirm** to save all at once. You can also tap **Set All In** (or **Set Remaining In**) to fill every unset day as IN in one tap.
@@ -387,7 +407,7 @@ Click the bell to open the full notification list. Tap **Mark all read** to clea
 
 ### Daily Email Digest
 
-At **8:30 AM SGT** on weekdays the system sends a daily attendance email to the address configured as `DIGEST_EMAIL`.
+At **8:30 AM SGT** on weekdays the system sends a daily attendance email to all addresses configured under **Settings → Digest emails**.
 
 The email includes:
 - Date and day of week
@@ -395,6 +415,20 @@ The email includes:
 - A summary count: *IN: X · OUT: Y · Unconfirmed: Z*
 
 The email is sent in both plain text and HTML. The HTML version colour-codes each row green for IN, red for OUT, and yellow for unconfirmed.
+
+---
+
+### Settings
+
+Click the **gear icon** in the top nav to open the Settings page.
+
+**Department scope:**
+
+Limit which officers are included in morning nudges and the daily digest. Choose a Division, and optionally a Branch, to restrict the scope. Leave both blank to include all officers.
+
+**Digest emails:**
+
+Manage the list of email addresses that receive the 8:30 AM daily digest. Add addresses one at a time; remove any by clicking the × next to them. Changes take effect immediately for the next scheduled send.
 
 ---
 
@@ -430,4 +464,6 @@ Multi-day: "mon in, tue mc, wed wfh"  or  "14/4 in, 15/4 mc"
 
 Range:  ovl 21/4 to 30/4              →  OUT (OVL) for all weekdays in range
         vl 5 may to 9 may             →  OUT (VL) for all weekdays in range
+
+Cancel: cancel 21/4 to 30/4          →  Remove leave for all weekdays in range
 ```
