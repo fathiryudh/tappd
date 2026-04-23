@@ -13,6 +13,10 @@ function localISODate(date = new Date()) {
   return `${y}-${m}-${d}`
 }
 
+function sgtISODate() {
+  return localISODate(new Date(Date.now() + 8 * 60 * 60 * 1000))
+}
+
 function isWeekend(isoDate) {
   const dow = new Date(isoDate + 'T00:00:00').getDay()
   return dow === 0 || dow === 6
@@ -945,7 +949,7 @@ async function handleRosterCommand(msg) {
     return
   }
 
-  const todayISO = localISODate()
+  const todayISO = sgtISODate()
   const today = new Date(todayISO)
 
   const msgText = msg.text || ''
@@ -1060,7 +1064,7 @@ async function handleWeekplanCommand(msg) {
     return
   }
 
-  const todayISO = localISODate()
+  const todayISO = sgtISODate()
   const mon = getMondayOfWeek(todayISO)
   const weekDates = [0, 1, 2, 3, 4].map(i => addDays(mon, i))
 
@@ -1190,8 +1194,8 @@ async function handleMessage(msg) {
 
   const rawMessage = sanitizeInput(msg.text || '')
 
-  const todayISO = localISODate()
-  const tomorrowISO = localISODate(new Date(Date.now() + 86400000))
+  const todayISO = sgtISODate()
+  const tomorrowISO = addDays(todayISO, 1)
 
   if (editSessions.has(telegramId) && !msg.contact) {
     const editSession = editSessions.get(telegramId)
@@ -1554,8 +1558,8 @@ async function handleCallbackQuery(query) {
   const messageId = query.message.message_id
   const data = query.data
 
-  const todayISO = localISODate()
-  const tomorrowISO = localISODate(new Date(Date.now() + 86400000))
+  const todayISO = sgtISODate()
+  const tomorrowISO = addDays(todayISO, 1)
 
   if (data === 'cancel' || data === 'holiday:cancel') {
     sessions.delete(telegramId)
@@ -1963,7 +1967,7 @@ async function handleCommand(msg) {
   }
 
   if (text.startsWith('/status')) {
-    const todayISO = localISODate()
+    const todayISO = sgtISODate()
     const today = new Date(todayISO)
 
     const officer = await prisma.officer.findUnique({
@@ -2002,8 +2006,8 @@ async function handleCommand(msg) {
       await bot.sendMessage(msg.chat.id, 'NSFs cannot log attendance. Use /roster to view the roster.')
       return
     }
-    const todayISO = localISODate()
-    const tomorrowISO = localISODate(new Date(Date.now() + 86400000))
+    const todayISO = sgtISODate()
+    const tomorrowISO = addDays(todayISO, 1)
     if (isWeekend(todayISO)) {
       await bot.sendMessage(msg.chat.id, "It's the weekend — no need to report today.")
       return
