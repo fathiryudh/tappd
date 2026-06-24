@@ -158,6 +158,10 @@ export default function RosterView({
     if (dow === 0 || dow === 6) return addDays(getMondayOfWeek(todayISO), 7)
     return getMondayOfWeek(todayISO)
   })
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const dow = new Date(todayISO + 'T00:00:00').getDay()
+    return (dow >= 1 && dow <= 5) ? todayISO : addDays(getMondayOfWeek(todayISO), 7)
+  })
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -228,6 +232,11 @@ export default function RosterView({
     }
   }, [loading])
 
+  useEffect(() => {
+    const days = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i))
+    if (!days.includes(selectedDay)) setSelectedDay(weekStart)
+  }, [weekStart, selectedDay])
+
   let inCount = 0, outCount = 0, unconfirmed = 0
   if (data && isCurrentWeek) {
     for (const o of data.officers) {
@@ -238,12 +247,47 @@ export default function RosterView({
     }
   }
 
+  let mobileIn = 0, mobileOut = 0, mobileUnconfirmed = 0
+  if (data) {
+    for (const o of data.officers) {
+      const d = o.days[selectedDay]
+      if (!d) mobileUnconfirmed++
+      else if (getActiveStatusType(d, { date: selectedDay, todayISO, now }) === 'in') mobileIn++
+      else mobileOut++
+    }
+  }
+
   const weekLabel = `${fmtShort(week[0])} – ${fmtShort(week[4])}`
   const total = data?.officers?.length ?? 0
 
   function prevWeek() { setWeekStart(prev => addDays(getMondayOfWeek(prev), -7)) }
   function nextWeek() { setWeekStart(prev => addDays(getMondayOfWeek(prev),  7)) }
-  function goToday()  { setWeekStart(getMondayOfWeek(todayISO)) }
+  function goToday()  {
+    setWeekStart(getMondayOfWeek(todayISO))
+    setSelectedDay(todayISO)
+  }
+
+  function prevDay() {
+    const idx = week.indexOf(selectedDay)
+    if (idx > 0) {
+      setSelectedDay(week[idx - 1])
+    } else {
+      const newMonday = addDays(weekStart, -7)
+      setWeekStart(newMonday)
+      setSelectedDay(addDays(newMonday, 4))
+    }
+  }
+
+  function nextDay() {
+    const idx = week.indexOf(selectedDay)
+    if (idx < 4) {
+      setSelectedDay(week[idx + 1])
+    } else {
+      const newMonday = addDays(weekStart, 7)
+      setWeekStart(newMonday)
+      setSelectedDay(newMonday)
+    }
+  }
 
   return (
     <div>
@@ -270,7 +314,7 @@ export default function RosterView({
             >
               Attendance
             </h1>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="mt-3 hidden flex-wrap items-center gap-2 md:flex">
               <span className="text-base md:text-lg" style={{ color: COLORS.muted }}>
                 {weekLabel}
               </span>
@@ -296,11 +340,61 @@ export default function RosterView({
                 </span>
               </NavBtn>
             </div>
+
+            <div className="mt-3 flex items-center gap-2 md:hidden">
+              <div
+                className="flex items-center rounded-full px-0.5 py-0.5"
+                style={{ background: 'rgba(0,0,0,0.04)' }}
+              >
+                <NavBtn onClick={prevDay} title="Previous day">←</NavBtn>
+                {selectedDay !== todayISO && (
+                  <NavBtn onClick={goToday} small>Today</NavBtn>
+                )}
+                <NavBtn onClick={nextDay} title="Next day">→</NavBtn>
+              </div>
+              <span className="text-base" style={{ color: COLORS.muted }}>
+                {DAY_LABELS[week.indexOf(selectedDay)]} · {fmtShort(selectedDay)}
+              </span>
+              <NavBtn
+                onClick={() => fetchData()}
+                small
+                disabled={loading || refreshing}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <ArrowsClockwise size={12} className={loading ? 'animate-spin' : ''} />
+                  {loading ? 'Loading…' : 'Refresh'}
+                </span>
+              </NavBtn>
+            </div>
           </div>
 
           <div className="flex flex-col items-start gap-3 lg:items-end">
+            {!loading && data && (
+              <div className="flex flex-wrap gap-1.5 md:hidden">
+                <span
+                  className={`rounded-full px-3 py-1 text-[11px] font-semibold ${PILL.in}`}
+                  style={{ '--pill-bg': COLORS.successSoft, '--pill-fg': COLORS.success, '--pill-ring': 'rgba(10,130,23,0.16)' }}
+                >
+                  {mobileIn} in
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 text-[11px] font-semibold ${PILL.out}`}
+                  style={{ '--pill-bg': COLORS.dangerSoft, '--pill-fg': COLORS.danger, '--pill-ring': 'rgba(215,38,15,0.16)' }}
+                >
+                  {mobileOut} out
+                </span>
+                {mobileUnconfirmed > 0 && (
+                  <span
+                    className="rounded-full px-3 py-1 text-[11px] font-semibold ring-1 ring-inset"
+                    style={{ background: COLORS.warningSoft, color: COLORS.warning, boxShadow: 'inset 0 0 0 1px rgba(247,144,9,0.16)' }}
+                  >
+                    {mobileUnconfirmed} unconfirmed
+                  </span>
+                )}
+              </div>
+            )}
             {isCurrentWeek && !loading && data && (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="hidden flex-wrap gap-1.5 md:flex">
                 <span
                   className={`rounded-full px-3 py-1 text-[11px] font-semibold ${PILL.in}`}
                   style={{ '--pill-bg': COLORS.successSoft, '--pill-fg': COLORS.success, '--pill-ring': 'rgba(10,130,23,0.16)' }}
@@ -339,17 +433,13 @@ export default function RosterView({
           ) : (
             <>
               <div className="md:hidden">
-                {data.officers.map((officer, idx) => (
-                  <MobileOfficerCard
-                    key={officer.id}
-                    officer={officer}
-                    week={week}
-                    todayISO={todayISO}
-                    now={now}
-                    idx={idx}
-                    revealed={revealed}
-                  />
-                ))}
+                <MobileDayView
+                  officers={data.officers}
+                  selectedDay={selectedDay}
+                  todayISO={todayISO}
+                  now={now}
+                  revealed={revealed}
+                />
               </div>
 
               <div className="hidden overflow-x-auto md:block">
@@ -484,6 +574,33 @@ function OfficerStatus({ officer, date, todayISO, now }) {
     <div>
       <StatusPill type={type} label={label} />
       <StatusDetail detail={detail} />
+    </div>
+  )
+}
+
+function MobileDayView({ officers, selectedDay, todayISO, now, revealed }) {
+  return (
+    <div>
+      {officers.map((officer, idx) => {
+        const { type, label, detail } = parseStatus(officer.days[selectedDay], { date: selectedDay, todayISO, now })
+        return (
+          <div
+            key={officer.id}
+            className="flex items-center justify-between border-b px-4 py-3.5"
+            style={{ borderColor: COLORS.line, ...getRowRevealStyle(revealed, idx) }}
+          >
+            <span className="text-sm font-medium" style={{ color: COLORS.text }}>
+              {officer.name}
+            </span>
+            <div className="text-right">
+              {type === 'none'
+                ? <span style={{ color: COLORS.muted, fontSize: '13px' }}>—</span>
+                : <><StatusPill type={type} label={label} /><StatusDetail detail={detail} /></>
+              }
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
